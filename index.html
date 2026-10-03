@@ -41,7 +41,7 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 .exact .acts .set{background:var(--accent);color:#000}
 .panel.dead::after{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;background:rgba(0,0,0,.35);-webkit-backdrop-filter:grayscale(.9) brightness(.55);backdrop-filter:grayscale(.9) brightness(.55)}
 .panel.champ{filter:brightness(1.15);box-shadow:inset 0 0 0 7px var(--accent),inset 0 0 50px 14px rgba(251,191,36,.7);z-index:5;animation:pulse 1s ease-in-out infinite}
-.sparkles .first.xl{font-size:min(9vw,7vh);top:auto;bottom:12%;color:#fde68a;text-shadow:0 0 10px #000,0 0 18px var(--accent)}
+.sparkles .first.xl{pointer-events:auto;cursor:pointer;font-size:min(9vw,7vh);top:auto;bottom:12%;color:#fde68a;text-shadow:0 0 10px #000,0 0 18px var(--accent)}
 .panel .name{position:absolute;top:8px;left:0;right:0;text-align:center;font-size:14px;font-weight:600;opacity:.85;z-index:2;pointer-events:none}
 .panel .name.editable{pointer-events:auto;cursor:text;top:2px;padding:6px 0 14px}
 .panel .name.editable::after{content:" ✎";opacity:.8}
@@ -238,6 +238,7 @@ function defeatCauses(p,i){
   if(p.life<=0)c.push({key:'life',type:'life'});
   return c;
 }
+let gameOverShown=null,summaryTimer=null;
 function dead(p){return p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
 function update(){
   S.players.forEach((p,i)=>{
@@ -269,7 +270,7 @@ function update(){
     const champ=!isDead&&aliveCount===1&&S.players.length>1;
     P.classList.toggle('champ',champ);
     let cs2=P.querySelector('.sparkles.champ-sp');
-    if(champ&&!cs2){P.append(makeSparkles('Winner!','champ-sp',true))}
+    if(champ&&!cs2){const sp=makeSparkles('Winner! 📊','champ-sp',true);sp.querySelector('.first').onclick=openSummary;P.append(sp)}
     else if(!champ&&cs2)cs2.remove();
     const cd=P.querySelector('.cdmg');cd.innerHTML='';
     if(MODES[S.mode].cmdr)S.players.forEach((o,j)=>{
@@ -293,6 +294,13 @@ function update(){
     if(p.exp)b.append(el('span','badge','✨ '+p.exp));
     
   });
+  // game over (one or no players left): show the summary once. First update after load/new game only records the state.
+  const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
+  if(gameOverShown===null)gameOverShown=over;
+  else if(over&&!gameOverShown){
+    gameOverShown=true;clearTimeout(summaryTimer);
+    summaryTimer=setTimeout(()=>{if(gameOverShown&&!$('modal').classList.contains('open'))openSummary()},2500);  // let the Winner! highlight land first
+  }else if(!over){gameOverShown=false;clearTimeout(summaryTimer)}
   save();
 }
 /* undo / redo: snapshots of the game numbers (life, counters, commander damage, tokens, log). Rapid repeated changes
@@ -504,8 +512,74 @@ function pickRandomPlayer(){
   pickTimers.push(setTimeout(endPick,4000+120+3000));
 }
 $('pickguard').onclick=endPick;
+/* game summary: life total after every life event, drawn to a PNG (shown as an <img> so iOS long-press Save also works) */
+function drawSummary(cv,W){
+  const n=S.players.length,u=W/360,H=Math.round((344+28*n)*u);cv.width=W;cv.height=H;
+  const c=cv.getContext('2d'),F=(sz,w)=>`${w||500} ${sz*u}px -apple-system,"Segoe UI",system-ui,sans-serif`;
+  c.fillStyle='#0f1115';c.fillRect(0,0,W,H);c.textBaseline='alphabetic';c.textAlign='left';
+  const alive=S.players.map((q,i)=>i).filter(i=>!dead(S.players[i])),win=n>1&&alive.length===1?alive[0]:null;
+  c.fillStyle='#f3f4f6';c.font=F(20,800);c.fillText('Game summary',16*u,32*u);
+  c.fillStyle='#9aa0ab';c.font=F(11);c.fillText(`${MODES[S.mode].label} · ${n} players · ${fmt(S.elapsed)} · ${new Date().toLocaleDateString()}`,16*u,50*u);
+  c.font=F(15,800);c.fillStyle=win!=null?'#fbbf24':'#9aa0ab';
+  c.fillText(win!=null?`🏆 ${S.players[win].name} wins`:(alive.length===0?'Draw — nobody left standing':'Game in progress'),16*u,76*u);
+  const start=MODES[S.mode].life,now=S.elapsed;
+  const series=S.players.map(q=>{const pts=[[0,start]];q.log.slice().sort((a,b)=>a.t-b.t).forEach(e=>pts.push([e.t,e.life]));pts.push([Math.max(now,pts[pts.length-1][0]),q.life]);return pts});
+  const all=series.flat(),tmax=Math.max(1,...all.map(a=>a[0]));
+  let lo=Math.min(0,...all.map(a=>a[1])),hi=Math.max(start,...all.map(a=>a[1]));const pad=Math.max(2,(hi-lo)*.05);lo-=pad;hi+=pad;
+  const L=44*u,R=W-16*u,T=92*u,B=300*u,X=t=>L+(R-L)*t/tmax,Y=v=>B-(B-T)*(v-lo)/(hi-lo);
+  const step=[1,2,5,10,20,50,100,200].find(st=>(hi-lo)/st<=6)||500;
+  c.font=F(10);c.textAlign='right';c.lineWidth=1*u;
+  for(let v=Math.ceil(lo/step)*step;v<=hi;v+=step){c.strokeStyle='rgba(255,255,255,.08)';c.beginPath();c.moveTo(L,Y(v));c.lineTo(R,Y(v));c.stroke();c.fillStyle='#9aa0ab';c.fillText(v,L-6*u,Y(v)+3.5*u)}
+  c.strokeStyle='rgba(239,68,68,.85)';c.setLineDash([5*u,4*u]);c.beginPath();c.moveTo(L,Y(0));c.lineTo(R,Y(0));c.stroke();c.setLineDash([]);
+  c.textAlign='center';c.fillStyle='#9aa0ab';for(let k=0;k<=4;k++)c.fillText(fmt(Math.round(tmax*k/4)),X(tmax*k/4),B+15*u);
+  c.lineJoin='round';
+  series.forEach((pts,i)=>{
+    const col=colorOf(i),path=()=>{c.beginPath();c.moveTo(X(pts[0][0]),Y(pts[0][1]));for(let k=1;k<pts.length;k++){c.lineTo(X(pts[k][0]),Y(pts[k-1][1]));c.lineTo(X(pts[k][0]),Y(pts[k][1]))}};
+    path();c.strokeStyle='rgba(255,255,255,.3)';c.lineWidth=5*u;c.stroke();   // light underlay keeps dark colors visible
+    path();c.strokeStyle=col;c.lineWidth=2.8*u;c.stroke();
+    for(let k=1;k<pts.length-1;k++){c.beginPath();c.arc(X(pts[k][0]),Y(pts[k][1]),2.6*u,0,7);c.fillStyle=col;c.fill();c.lineWidth=1*u;c.strokeStyle='#0f1115';c.stroke()}
+    const e=pts[pts.length-1],ex=X(e[0]),ey=Y(e[1]);
+    if(dead(S.players[i])){c.strokeStyle='#fff';c.lineWidth=2.6*u;c.beginPath();c.moveTo(ex-4*u,ey-4*u);c.lineTo(ex+4*u,ey+4*u);c.moveTo(ex+4*u,ey-4*u);c.lineTo(ex-4*u,ey+4*u);c.stroke()}
+    else{c.beginPath();c.arc(ex,ey,4.4*u,0,7);c.fillStyle=col;c.fill();c.lineWidth=2*u;c.strokeStyle='#fff';c.stroke()}
+  });
+  c.textAlign='left';
+  S.players.forEach((q,i)=>{
+    const y=B+34*u+i*28*u;
+    c.beginPath();c.arc(22*u,y+7*u,6*u,0,7);c.fillStyle=colorOf(i);c.fill();c.lineWidth=1.5*u;c.strokeStyle='rgba(255,255,255,.7)';c.stroke();
+    c.fillStyle='#f3f4f6';c.font=F(13,700);c.fillText(q.name,36*u,y+10*u);
+    const d=q.defeat,out=i===win?'Winner!':!d?'':d.type==='life'?'Defeated':d.type==='poison'?'Poisoned':`Defeated by ${d.by}!`;
+    let sub=[q.cmds.map(x=>x.name).join(' & '),out].filter(Boolean).join(' · ');
+    c.font=F(10);c.fillStyle='#9aa0ab';const maxW=W-16*u-70*u-36*u;
+    while(sub&&c.measureText(sub).width>maxW)sub=sub.slice(0,-2)+'…';
+    c.fillText(sub,36*u,y+22*u);
+    c.textAlign='right';c.font=F(17,800);c.fillStyle=dead(q)?'#9aa0ab':'#f3f4f6';c.fillText(q.life,W-16*u,y+14*u);c.textAlign='left';
+  });
+}
+let sumUrl=null;
+function openSummary(){
+  const cv=document.createElement('canvas');drawSummary(cv,1080);
+  modal(`<h2>🏁 Game over</h2><img id="sumimg" alt="Life totals over the game" style="width:100%;border-radius:12px;display:block;min-height:120px;background:#0f1115">
+<p class="hint">Life total after each life change. Press and hold the picture to save it.</p>
+<button class="big" style="margin-top:12px" id="sshare" disabled>Share image</button>
+<button class="big" style="margin-top:8px" id="x">Close</button>`,card=>{
+    let file=null;
+    card.querySelector('#x').onclick=closeModal;
+    cv.toBlob(blob=>{
+      if(!blob)return;
+      if(sumUrl)URL.revokeObjectURL(sumUrl);sumUrl=URL.createObjectURL(blob);
+      card.querySelector('#sumimg').src=sumUrl;
+      file=new File([blob],'mtg-game-summary.png',{type:'image/png'});   // built ahead of the tap: iOS wants share() called straight from the gesture
+      card.querySelector('#sshare').disabled=false;
+    },'image/png');
+    card.querySelector('#sshare').onclick=()=>{
+      if(!file)return;
+      if(navigator.canShare&&navigator.canShare({files:[file]}))navigator.share({files:[file],title:'MTG game summary'}).catch(()=>{});
+      else{const a=document.createElement('a');a.href=sumUrl;a.download=file.name;document.body.append(a);a.click();a.remove()}
+    };
+  });
+}
 function startedNewGame(){
-  clearHistory();closeModal();render();
+  gameOverShown=null;clearTimeout(summaryTimer);clearHistory();closeModal();render();
   $('bPause').textContent='⏸';$('timer').textContent=fmt(S.elapsed);
 }
 $('bMenu').onclick=()=>{
