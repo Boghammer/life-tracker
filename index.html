@@ -210,6 +210,7 @@ function update(){
     const cd=P.querySelector('.cdmg');cd.innerHTML='';
     if(MODES[S.mode].cmdr)S.players.forEach((o,j)=>{
       [['c',p.cmdr,0],...(o.cmds.length>1?[['d',p.cmdrB,1]]:[])].forEach(([pre,arr,k])=>{
+        if(!arr[j])return;  // hidden until this commander has dealt damage (add the first point from the ☰ menu)
         const c=el('button','chip'+(arr[j]>=21?' lethal':''),`<i style="background:${colorOf(j)}"></i><span>${arr[j]}</span>`+(o.cmds.length>1?`<small>${k?'B':'A'}</small>`:'')+(j===i?'<small>you</small>':''));
         c.title='Commander damage from '+(o.cmds[k]?o.cmds[k].name:o.name);
         let t,held=false;
