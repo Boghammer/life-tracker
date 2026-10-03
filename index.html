@@ -111,6 +111,8 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 .crownbtn.lifted{opacity:.35}
 .tokcol{position:absolute;top:6px;display:flex;flex-direction:column;gap:6px;z-index:3;pointer-events:none}
 .panel[data-crown=left] .tokcol{right:6px}.panel[data-crown=right] .tokcol{left:6px}
+.tok.drag{pointer-events:auto;cursor:grab;touch-action:none}
+.tok.lifted{opacity:.35}
 .tok{width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
 .monarch-ghost{position:fixed;z-index:70;pointer-events:none;transform:translate(-50%,-50%) scale(1.2);font-size:46px;line-height:1;filter:drop-shadow(0 6px 10px rgba(0,0,0,.6))}
 .panel.drop{box-shadow:inset 0 0 0 6px var(--accent),inset 0 0 40px 10px rgba(251,191,36,.55);z-index:5}
@@ -257,7 +259,7 @@ function render(){
       const screenSide=k<(m-1)/2?'right':k>(m-1)/2?'left':'right';   // the side facing the middle of the table
       P.dataset.crown=inTop?(screenSide==='right'?'left':'right'):screenSide;
       const cr=el('div','crownbtn','👑');cr.title='Monarch - drag to another player';cr.hidden=true;
-      cr.addEventListener('pointerdown',e=>{if(S.monarch===i)startMonarchDrag(e,i,cr)});
+      cr.addEventListener('pointerdown',e=>{if(S.monarch===i)startTokenDrag(e,i,cr,'monarch','👑')});
       P.append(cr);
       P.append(el('div','tokcol'));
     }
@@ -351,7 +353,9 @@ function update(){
     P.querySelector('.crownbtn').hidden=S.monarch!==i;
     const tc=P.querySelector('.tokcol');tc.innerHTML='';   // Initiative / City's Blessing: icons stacked in the corner opposite the crown
     [[S.initiative===i,'🏰','Initiative'],[!!p.blessing,'🏙️','City’s Blessing']].forEach(([on,icon,title])=>{
-      if(!on)return;const t=el('div','tok',icon);t.title=title;tc.append(t);
+      if(!on)return;const t=el('div','tok',icon);t.title=title;
+      if(title==='Initiative'){t.classList.add('drag');t.title='Initiative - drag to another player';t.addEventListener('pointerdown',e=>{if(S.initiative===i)startTokenDrag(e,i,t,'initiative','🏰')})}
+      tc.append(t);
     });
     // once a counter has started, tapping its badge adds one (lowering it is done from the player's menu)
     [['poison','☠'],['energy','⚡'],['exp','✨']].forEach(([k,icon])=>{
@@ -468,10 +472,10 @@ function openCmdr(i){
   ov.querySelector('.done').onclick=closeCmdr;
   document.body.append(ov);
 }
-/* drag the Monarch badge onto another player's panel to pass the crown */
-function startMonarchDrag(e,from,badge){
+/* drag a single-holder token (Monarch crown, Initiative) onto another player's panel to pass it on */
+function startTokenDrag(e,from,badge,key,icon){
   e.preventDefault();
-  const ghost=el('div','monarch-ghost','👑');document.body.append(ghost);badge.classList.add('lifted');
+  const ghost=el('div','monarch-ghost',icon);document.body.append(ghost);badge.classList.add('lifted');
   let target=-1;
   const place=ev=>{
     ghost.style.left=ev.clientX+'px';ghost.style.top=ev.clientY+'px';
@@ -483,7 +487,7 @@ function startMonarchDrag(e,from,badge){
   const finish=(ev,apply)=>{
     document.removeEventListener('pointermove',place);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancel);
     ghost.remove();badge.classList.remove('lifted');panels.forEach(x=>x.P.classList.remove('drop'));
-    if(apply&&target>=0){record('tok');S.monarch=target;buzz();update()}
+    if(apply&&target>=0){record('tok');S[key]=target;buzz();update()}
   };
   const up=ev=>{place(ev);finish(ev,true)},cancel=ev=>finish(ev,false);
   document.addEventListener('pointermove',place);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);
