@@ -485,7 +485,6 @@ $('bMenu').onclick=()=>{
 <h3>Players</h3><div class="grid" id="ns">${[2,3,4,5,6].map(x=>`<button data-n="${x}" class="${x===n?'on':''}">${x}</button>`).join('')}</div>
 <button class="big" style="margin-top:18px" id="go">Start new game</button>
 <button class="big" style="margin-top:8px" id="same">New game, same players<br><small style="font-weight:500;color:var(--muted)">Keeps names, commanders and colors</small></button>
-<button class="big" style="margin-top:8px" id="rs">Reset life totals only<br><small style="font-weight:500;color:var(--muted)">Keeps counters, commander damage and tokens</small></button>
 <button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
     const pick=(sel,attr,fn)=>c.querySelectorAll(sel).forEach(b=>b.onclick=()=>{c.querySelectorAll(sel).forEach(y=>y.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr])});
     pick('[data-m]','m',v=>mode=v);pick('[data-n]','n',v=>n=+v);
@@ -494,12 +493,6 @@ $('bMenu').onclick=()=>{
       const old=S;S=fresh(old.players.length,old.mode);
       S.players.forEach((p,k)=>{const o=old.players[k];p.name=o.name;p.cmds=o.cmds||[];if(o.color)p.color=o.color});
       startedNewGame();wake();
-    };
-    c.querySelector('#rs').onclick=()=>{
-      record('reset'+Date.now());const start=MODES[S.mode].life;
-      panels.forEach(x=>{clearTimeout(x.dt);x.delta=0;x.P.querySelector('.delta').classList.remove('show')});
-      S.players.forEach(p=>{if(p.life!==start){logEvent(p,'life reset',start-p.life,start);p.life=start}});
-      closeModal();update();
     };
     c.querySelector('#x').onclick=closeModal;
   });
