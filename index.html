@@ -180,9 +180,9 @@ function update(){
     P.classList.toggle('dead',dead(p));
     P.querySelector('.status').textContent=p.life<=0?'Defeated':p.poison>=10?'Poisoned':'Commander'
     const cd=P.querySelector('.cdmg');cd.innerHTML='';
-    if(MODES[S.mode].cmdr)S.players.forEach((o,j)=>{if(j===i)return;
+    if(MODES[S.mode].cmdr)S.players.forEach((o,j)=>{
       [['c',p.cmdr,0],...(o.cmds.length>1?[['d',p.cmdrB,1]]:[])].forEach(([pre,arr,k])=>{
-        const c=el('button','chip'+(arr[j]>=21?' lethal':''),`<i style="background:${COLORS[j]}"></i><span>${arr[j]}</span>`+(o.cmds.length>1?`<small>${k?'B':'A'}</small>`:''));
+        const c=el('button','chip'+(arr[j]>=21?' lethal':''),`<i style="background:${COLORS[j]}"></i><span>${arr[j]}</span>`+(o.cmds.length>1?`<small>${k?'B':'A'}</small>`:'')+(j===i?'<small>you</small>':''));
         c.title='Commander damage from '+(o.cmds[k]?o.cmds[k].name:o.name);
         let t,held=false;
         c.addEventListener('pointerdown',e=>{e.stopPropagation();held=false;t=setTimeout(()=>{held=true;cmdrAdjust(i,pre+j,-1)},500)});
@@ -232,8 +232,8 @@ function openSheet(i){
   h+=ctr('exp','✨ Experience','',p.exp);
   if(m.cmdr){
     h+='<h3>Commander damage received</h3>';
-    S.players.forEach((o,j)=>{if(j===i)return;
-      const lbl=k=>`<span style="color:${COLORS[j]}">●</span> From ${esc(o.cmds[k]?o.cmds[k].name:o.name)}`,sub='lethal at 21 · also reduces life';
+    S.players.forEach((o,j)=>{
+      const lbl=k=>`<span style="color:${COLORS[j]}">●</span> From ${j===i?'my own ':''}${esc(o.cmds[k]?o.cmds[k].name:o.name)}`,sub='lethal at 21 · also reduces life';
       h+=ctr('c'+j,lbl(0),sub,p.cmdr[j],p.cmdr[j]>=21);
       if(o.cmds.length>1)h+=ctr('d'+j,lbl(1),sub,p.cmdrB[j],p.cmdrB[j]>=21);
     });
