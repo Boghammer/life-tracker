@@ -253,13 +253,7 @@ function openSheet(i){
   h+='<h3>Commander</h3>';
   p.cmds.forEach((c,k)=>{h+=`<div class="cmd-cur"><img src="${esc(c.art)}" alt=""><span>${esc(c.name)}<br><small style="color:var(--muted)">art: ${esc(c.artist||'')}</small></span><button data-rm="${k}">Remove</button></div>`});
   if(p.cmds.length<2)h+=`<input class="cmd-search" id="cq" placeholder="${p.cmds.length?'Add partner / background…':'Search commander (Scryfall)…'}" autocomplete="off" autocapitalize="off"><div class="cmd-res" id="cres"></div>`;
-  h+='<h3>Panel color</h3><div class="sw">'+SWATCHES.map(c=>`<button data-c="${c}" class="${colorOf(i).toLowerCase()===c?'on':''}${takenBy(c,i)>=0?' taken':''}" style="background:${c}" title="${takenBy(c,i)>=0?'Used by '+esc(S.players[takenBy(c,i)].name):''}"></button>`).join('')+`<input type="color" id="cc" value="${colorOf(i)}" title="Custom color"><div class="note" id="cnote"></div></div>`;
-  h+='<h3>Counters</h3>';
   const ctr=(key,label,sub,val,lethal)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1">+</button></div></div>`;
-  h+=ctr('life','❤️ Life','',p.life,p.life<=0);
-  h+=ctr('poison','☠ Poison','lethal at 10',p.poison,p.poison>=10);
-  h+=ctr('energy','⚡ Energy','',p.energy);
-  h+=ctr('exp','✨ Experience','',p.exp);
   if(m.cmdr){
     h+='<h3>Commander damage received</h3>';
     S.players.forEach((o,j)=>{
@@ -268,6 +262,12 @@ function openSheet(i){
       if(o.cmds.length>1)h+=ctr('d'+j,lbl(1),sub,p.cmdrB[j],p.cmdrB[j]>=21);
     });
   }
+  h+='<h3>Panel color</h3><div class="sw">'+SWATCHES.map(c=>`<button data-c="${c}" class="${colorOf(i).toLowerCase()===c?'on':''}${takenBy(c,i)>=0?' taken':''}" style="background:${c}" title="${takenBy(c,i)>=0?'Used by '+esc(S.players[takenBy(c,i)].name):''}"></button>`).join('')+`<input type="color" id="cc" value="${colorOf(i)}" title="Custom color"><div class="note" id="cnote"></div></div>`;
+  h+='<h3>Counters</h3>';
+  h+=ctr('life','❤️ Life','',p.life,p.life<=0);
+  h+=ctr('poison','☠ Poison','lethal at 10',p.poison,p.poison>=10);
+  h+=ctr('energy','⚡ Energy','',p.energy);
+  h+=ctr('exp','✨ Experience','',p.exp);
   h+='<h3>Tokens</h3><div class="toggles"><button id="tm" class="'+(S.monarch===i?'on':'')+'">👑 Monarch</button><button id="ti" class="'+(S.initiative===i?'on':'')+'">🏰 Initiative</button></div>';
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
