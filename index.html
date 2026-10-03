@@ -282,8 +282,14 @@ function openSheet(i){
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
   sh.innerHTML=h;P.append(sh);
-  sh.querySelector('#cl').onclick=()=>{p.name=sh.querySelector('#nm').value.trim()||p.name;sh.remove();update()};
-  sh.querySelector('#nm').oninput=e=>{p.name=e.target.value;update()};
+  const nm=sh.querySelector('#nm'),defName='Player '+(i+1);
+  nm.placeholder=defName;
+  // first time naming: clear the default "Player #" so typing starts from an empty field
+  nm.onfocus=()=>{if(p.name===defName){nm.value=''}};
+  nm.oninput=()=>{p.name=nm.value.trim()?nm.value:defName;update()};
+  const restore=()=>{if(!nm.value.trim()){p.name=defName;nm.value=defName}};
+  nm.onblur=()=>{restore();update()};
+  sh.querySelector('#cl').onclick=()=>{restore();sh.remove();update()};
   sh.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{p.cmds.splice(+b.dataset.rm,1);update();openSheet(i)});
   let ct;const cres=sh.querySelector('#cres');
   sh.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const t=takenBy(b.dataset.c,i);if(t>=0){sh.querySelector('#cnote').textContent=S.players[t].name+' is already using that color.';return}p.color=b.dataset.c;update();openSheet(i)});
