@@ -262,7 +262,8 @@ function update(){
     if(isDead){
       const cs=defeatCauses(p,i),cur=cs.find(c=>p.defeat&&c.key===p.defeat.key)||cs[0];
       if(!p.defeat||p.defeat.key!==cur.key||p.defeat.by!==cur.by)p.defeat=cur;
-    }else delete p.defeat;
+      if(p.defeatT==null)p.defeatT=S.elapsed;   // when they were eliminated (game clock, seconds)
+    }else{delete p.defeat;p.defeatT=null}
     const st=P.querySelector('.status'),d=p.defeat;
     st.innerHTML=!d?'':d.type==='life'?'<div class="icon">☠️</div><div class="why">Defeated</div>'
       :d.type==='poison'?'<div class="icon">🧪</div><div class="why">Poisoned</div>'
@@ -307,7 +308,7 @@ function update(){
 /* undo / redo: snapshots of the game numbers (life, counters, commander damage, tokens, log). Rapid repeated changes
    to the same thing within 1.5s are one step, so a burst of taps undoes together. */
 const undoStack=[],redoStack=[];let lastKey=null,lastT=0;
-const snap=()=>JSON.stringify({pl:S.players.map(p=>({life:p.life,poison:p.poison,energy:p.energy,exp:p.exp,blessing:!!p.blessing,cmdr:p.cmdr,cmdrB:p.cmdrB,log:p.log})),monarch:S.monarch,initiative:S.initiative});
+const snap=()=>JSON.stringify({pl:S.players.map(p=>({life:p.life,poison:p.poison,energy:p.energy,exp:p.exp,blessing:!!p.blessing,defeatT:p.defeatT??null,cmdr:p.cmdr,cmdrB:p.cmdrB,log:p.log})),monarch:S.monarch,initiative:S.initiative});
 function record(key){
   const now=Date.now();
   if(key===lastKey&&now-lastT<1500){lastT=now;return}
@@ -526,9 +527,14 @@ function drawSummary(cv,W){
   c.font=F(13,700);c.fillStyle='#f3f4f6';c.fillText('Life Totals',16*u,100*u);
   const start=MODES[S.mode].life,now=S.elapsed;
   const series=S.players.map(q=>{
-    const pts=[[0,start]];q.log.slice().sort((a,b)=>a.t-b.t).forEach(e=>pts.push([e.t,Math.max(0,e.life)]));
-    pts.push([Math.max(now,pts[pts.length-1][0]),Math.max(0,q.life)]);
-    if(q.life<=0){let k=pts.length-1;while(k>0&&pts[k-1][1]<=0)k--;pts.length=k+1}   // line stops where the player reached 0
+    const end=dead(q)&&q.defeatT!=null?q.defeatT:null,pts=[[0,start]];
+    q.log.slice().sort((a,b)=>a.t-b.t).filter(e=>end==null||e.t<=end).forEach(e=>pts.push([e.t,Math.max(0,e.life)]));
+    const last=pts[pts.length-1];
+    if(end!=null)pts.push([Math.max(end,last[0]),q.defeat&&q.defeat.type==='life'?0:last[1]]);   // stops at the moment they were eliminated
+    else{
+      pts.push([Math.max(now,last[0]),Math.max(0,q.life)]);
+      if(q.life<=0){let k=pts.length-1;while(k>0&&pts[k-1][1]<=0)k--;pts.length=k+1}   // older games without a recorded time
+    }
     return pts});
   const all=series.flat(),tmax=Math.max(1,...all.map(a=>a[0]));
   let lo=0,hi=Math.max(start,...all.map(a=>a[1]));const pad=Math.max(2,hi*.05);lo=-pad*.6;hi+=pad;
@@ -554,7 +560,7 @@ function drawSummary(cv,W){
     c.beginPath();c.arc(22*u,y+7*u,6*u,0,7);c.fillStyle=colorOf(i);c.fill();c.lineWidth=1.5*u;c.strokeStyle='rgba(255,255,255,.7)';c.stroke();
     c.fillStyle='#f3f4f6';c.font=F(13,700);c.fillText(q.name,36*u,y+10*u);
     const d=q.defeat,out=i===win?'Winner!':!d?'':d.type==='life'?'Defeated':d.type==='poison'?'Poisoned':`Defeated by ${d.by}!`;
-    let sub=[q.cmds.map(x=>x.name).join(' & '),out].filter(Boolean).join(' · ');
+    let sub=[q.cmds.map(x=>x.name).join(' & '),out&&d&&i!==win&&q.defeatT!=null?`${out} at ${fmt(q.defeatT)}`:out].filter(Boolean).join(' · ');
     c.font=F(10);c.fillStyle='#9aa0ab';const maxW=W-16*u-70*u-36*u;
     while(sub&&c.measureText(sub).width>maxW)sub=sub.slice(0,-2)+'…';
     c.fillText(sub,36*u,y+22*u);
