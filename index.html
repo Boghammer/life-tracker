@@ -210,7 +210,8 @@ function render(){
           P.classList.add('charging');
           t=setTimeout(()=>{held=true;P.classList.remove('charging');buzz();openExact(i)},1000);
         }else t=setTimeout(()=>{held=true;adjust(i,dir*5);iv=setInterval(()=>adjust(i,dir*5),450)},500)});
-      h.addEventListener('pointerup',()=>{stop();if(!held)adjust(i,dir)});
+      h.addEventListener('pointerup',()=>{stop();if(!held)adjust(i,dir);tryFocusExact()});
+      h.addEventListener('touchend',tryFocusExact);
       h.addEventListener('pointerleave',stop);h.addEventListener('pointercancel',stop);
       h.addEventListener('contextmenu',e=>e.preventDefault());
       return h;
@@ -330,9 +331,18 @@ function openExact(i){
   ex.querySelector('.set').onclick=()=>done(true);
   inp.onkeydown=e=>{if(e.key==='Enter')done(true);else if(e.key==='Escape')done(false)};
   P.append(ex);
-  const focus=()=>{inp.focus();inp.select()};
-  focus();  // works on desktop/Android; iOS only raises the keyboard from a touch release, so also focus when the finger lifts
-  ex.addEventListener('pointerup',focus,{once:true});
+  // iOS only raises the keyboard when focus() runs inside a touch gesture; the long press has already ended its
+  // gesture by now, so focus again when the finger lifts (see tryFocusExact), and fall back to a hint + tapping the box.
+  const touch=matchMedia('(pointer: coarse)').matches;
+  if(!touch)inp.focus();  // desktop/Android focus immediately; on touch screens wait for the finger to lift
+  else ex.querySelector('.hintline').textContent='Set exact life total · tap the box if the keyboard is hidden';
+  pendingExact=inp;setTimeout(()=>{if(pendingExact===inp)pendingExact=null},3000);
+}
+let pendingExact=null;
+function tryFocusExact(){
+  const x=pendingExact;if(!x)return;
+  x.focus();try{x.setSelectionRange(0,x.value.length)}catch(e){}
+  if(document.activeElement===x)pendingExact=null;
 }
 function adjust(i,d){
   record('life'+i);
