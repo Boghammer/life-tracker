@@ -144,6 +144,12 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 #modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:16px}
 #modal.open{display:flex}
 #modal .card{background:#1a1d24;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto}
+#modal .card.bare{background:none;padding:0;max-width:420px;max-height:none;overflow:visible;display:flex;flex-direction:column;align-items:center;gap:10px}
+#modal .card.bare img{display:block;border-radius:14px;background:#0f1115;max-width:100%}
+#modal .card.bare .btns{display:flex;gap:10px;width:100%}
+#modal .card.bare .btns button{flex:1;height:46px;border-radius:12px;background:#262a33;font-size:16px;font-weight:700}
+#modal .card.bare .btns .share{background:var(--accent);color:#000}
+#modal .card.bare .btns button:disabled{opacity:.5}
 #modal h2{margin:0 0 12px;font-size:20px}
 #modal h3{margin:16px 0 8px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -166,6 +172,7 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
   <button id="bTools" title="Dice &amp; coin">🎲</button>
   <button id="bUndo" title="Undo" disabled>↶</button>
   <button id="bRedo" title="Redo" disabled>↷</button>
+  <button id="bGraph" title="Game summary graph" hidden>📊</button>
   <div id="timer">0:00</div>
   <button id="bPause" title="Pause timer">⏸</button>
 </div>
@@ -238,7 +245,7 @@ function defeatCauses(p,i){
   if(p.life<=0)c.push({key:'life',type:'life'});
   return c;
 }
-let gameOverShown=null,summaryTimer=null,gameIsOver=false;
+let gameIsOver=false;
 function dead(p){return p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
 function update(){
   S.players.forEach((p,i)=>{
@@ -297,12 +304,7 @@ function update(){
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
   const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
-  gameIsOver=over;
-  if(gameOverShown===null)gameOverShown=over;
-  else if(over&&!gameOverShown){
-    gameOverShown=true;clearTimeout(summaryTimer);
-    summaryTimer=setTimeout(()=>{if(gameOverShown&&!$('modal').classList.contains('open'))openSummary()},2500);  // let the Winner! highlight land first
-  }else if(!over){gameOverShown=false;clearTimeout(summaryTimer)}
+  gameIsOver=over;$('bGraph').hidden=!over;   // graph icon appears in the bar once the game has ended
   save();
 }
 /* undo / redo: snapshots of the game numbers (life, counters, commander damage, tokens, log). Rapid repeated changes
@@ -462,7 +464,7 @@ function openSheet(i){
 }
 
 /* modal helpers */
-function modal(html,bind){$('card').innerHTML=html;$('modal').classList.add('open');bind&&bind($('card'))}
+function modal(html,bind){$('card').className='card';$('card').innerHTML=html;$('modal').classList.add('open');bind&&bind($('card'))}
 function closeModal(){$('modal').classList.remove('open')}
 $('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()});
 
@@ -570,10 +572,10 @@ function drawSummary(cv,W){
 let sumUrl=null;
 function openSummary(){
   const cv=document.createElement('canvas');drawSummary(cv,1080);
-  modal(`<h2>🏁 Game over</h2><img id="sumimg" alt="Life totals over the game" style="width:100%;border-radius:12px;display:block;min-height:120px;background:#0f1115">
-<p class="hint">Press and hold the picture to save it.</p>
-<button class="big" style="margin-top:12px" id="sshare" disabled>Share image</button>
-<button class="big" style="margin-top:8px" id="x">Close</button>`,card=>{
+  const ratio=cv.width/cv.height;   // size the picture so the whole graph and legend fit the screen at once
+  modal(`<img id="sumimg" alt="Life totals over the game" style="aspect-ratio:${ratio};width:min(100%,calc((100vh - 110px) * ${ratio}))">
+<div class="btns"><button class="share" id="sshare" disabled>Share image</button><button id="x">Close</button></div>`,card=>{
+    card.classList.add('bare');
     let file=null;
     card.querySelector('#x').onclick=closeModal;
     cv.toBlob(blob=>{
@@ -591,7 +593,7 @@ function openSummary(){
   });
 }
 function startedNewGame(){
-  gameOverShown=null;clearTimeout(summaryTimer);clearHistory();closeModal();render();
+  clearHistory();closeModal();render();
   $('bPause').textContent='⏸';$('timer').textContent=fmt(S.elapsed);
 }
 $('bMenu').onclick=()=>{
@@ -613,6 +615,7 @@ $('bMenu').onclick=()=>{
     c.querySelector('#x').onclick=closeModal;
   });
 };
+$('bGraph').onclick=openSummary;
 $('bUndo').onclick=undo;$('bRedo').onclick=redo;
 $('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'▶️':'⏸';save()};
 
