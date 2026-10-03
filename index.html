@@ -105,6 +105,10 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 button.badge.tap{pointer-events:auto;color:#fff;border:0;padding:7px 12px;font-size:15px;touch-action:manipulation;cursor:pointer}
 button.badge.tap:active{background:rgba(0,0,0,.7)}
 .badge.crown{background:var(--accent);color:#000}
+.badge.crown.drag{pointer-events:auto;cursor:grab;touch-action:none;padding:7px 12px;font-size:15px}
+.badge.crown.drag.lifted{opacity:.35}
+.monarch-ghost{position:fixed;z-index:70;pointer-events:none;transform:translate(-50%,-50%) scale(1.15);background:var(--accent);color:#000;border-radius:999px;padding:8px 14px;font-size:16px;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.6);white-space:nowrap}
+.panel.drop{box-shadow:inset 0 0 0 6px var(--accent),inset 0 0 40px 10px rgba(251,191,36,.55);z-index:5}
 .gear{position:absolute;bottom:4px;right:4px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.35);font-size:18px;z-index:3}
 .status{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 10px;text-align:center;z-index:5;pointer-events:none}
 .status .icon{font-size:min(30vw,26vh);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
@@ -329,7 +333,11 @@ function update(){
         cd.append(c);
       })});
     const b=P.querySelector('.badges');b.innerHTML='';
-    if(S.monarch===i)b.append(el('span','badge crown','👑 Monarch'));
+    if(S.monarch===i){
+      const mb=el('span','badge crown drag','👑 Monarch');mb.title='Drag to another player';
+      mb.addEventListener('pointerdown',e=>startMonarchDrag(e,i,mb));
+      b.append(mb);
+    }
     if(S.initiative===i)b.append(el('span','badge crown','🏰 Initiative'));
     if(p.blessing)b.append(el('span','badge crown','🏙️ City’s Blessing'));
     // once a counter has started, tapping its badge adds one (lowering it is done from the player's menu)
@@ -446,6 +454,27 @@ function openCmdr(i){
   draw();
   ov.querySelector('.done').onclick=closeCmdr;
   document.body.append(ov);
+}
+/* drag the Monarch badge onto another player's panel to pass the crown */
+function startMonarchDrag(e,from,badge){
+  e.preventDefault();
+  const ghost=el('div','monarch-ghost','👑 Monarch');document.body.append(ghost);badge.classList.add('lifted');
+  let target=-1;
+  const place=ev=>{
+    ghost.style.left=ev.clientX+'px';ghost.style.top=ev.clientY+'px';
+    const hit=document.elementsFromPoint(ev.clientX,ev.clientY).find(n=>n.classList&&n.classList.contains('panel'));
+    const idx=hit?panels.findIndex(x=>x.P===hit):-1;
+    target=idx!==from?idx:-1;
+    panels.forEach((x,k)=>x.P.classList.toggle('drop',k===target));
+  };
+  const finish=(ev,apply)=>{
+    document.removeEventListener('pointermove',place);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancel);
+    ghost.remove();badge.classList.remove('lifted');panels.forEach(x=>x.P.classList.remove('drop'));
+    if(apply&&target>=0){record('tok');S.monarch=target;buzz();update()}
+  };
+  const up=ev=>{place(ev);finish(ev,true)},cancel=ev=>finish(ev,false);
+  document.addEventListener('pointermove',place);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);
+  place(e);
 }
 function adjust(i,d){
   record('life'+i);
