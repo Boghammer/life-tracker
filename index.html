@@ -43,6 +43,9 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 .panel.champ{filter:brightness(1.15);box-shadow:inset 0 0 0 7px var(--accent),inset 0 0 50px 14px rgba(251,191,36,.7);z-index:5;animation:pulse 1s ease-in-out infinite}
 .sparkles .first.xl{font-size:min(9vw,7vh);top:auto;bottom:12%;color:#fde68a;text-shadow:0 0 10px #000,0 0 18px var(--accent)}
 .panel .name{position:absolute;top:8px;left:0;right:0;text-align:center;font-size:14px;font-weight:600;opacity:.85;z-index:2;pointer-events:none}
+.panel .name.editable{pointer-events:auto;cursor:text;top:2px;padding:6px 0 14px}
+.panel .name.editable::after{content:" ✎";opacity:.8}
+.nameedit{position:absolute;top:6px;left:10px;right:10px;z-index:12;background:rgba(15,17,21,.95);border:2px solid var(--accent);border-radius:10px;color:#fff;font:inherit;font-weight:700;font-size:18px;text-align:center;padding:6px 8px;outline:none;-webkit-user-select:text;user-select:text}
 .panel .life{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:min(22vw,22vh);font-weight:800;font-variant-numeric:tabular-nums;pointer-events:none;text-shadow:0 2px 12px rgba(0,0,0,.35)}
 .panel.n5 .life,.panel.n6 .life{font-size:min(16vw,15vh)}
 .panel.n3 .life,.panel.n4 .life{font-size:min(18vw,18vh)}
@@ -199,6 +202,7 @@ function render(){
   S.players.forEach((p,i)=>{
     const P=el('div','panel n'+n);P.style.background=colorOf(i);
     P.append(el('div','name'),el('div','life','<span></span>'),el('div','delta'),el('div','badges'),el('div','cdmg'),el('div','status'));
+    P.querySelector('.name').onclick=()=>{if(P.querySelector('.name').classList.contains('editable'))startNameEdit(i)};
     const mk=(dir)=>{
       const h=el('div','half '+(dir>0?'plus':'minus'),'<span>'+(dir>0?'+':'−')+'</span>');
       let t,iv,held,shown=false;
@@ -239,6 +243,7 @@ function update(){
   S.players.forEach((p,i)=>{
     const {P}=panels[i];
     const nm=P.querySelector('.name');nm.textContent=p.name;
+    nm.classList.toggle('editable',p.name==='Player '+(i+1));  // still the default: tap the name to rename it right here
     if(p.cmds.length){const sm=el('small');sm.textContent=p.cmds.map(c=>c.name).join(' & ')+' · art: '+[...new Set(p.cmds.map(c=>c.artist).filter(Boolean))].join(', ');nm.append(sm)}
     P.classList.toggle('art',p.cmds.length>0);
     let ar=P.querySelector('.arts');
@@ -343,6 +348,21 @@ function tryFocusExact(){
   const x=pendingExact;if(!x)return;
   x.focus();try{x.setSelectionRange(0,x.value.length)}catch(e){}
   if(document.activeElement===x)pendingExact=null;
+}
+/* tap the default "Player #" name on the panel to rename it; once renamed, rename from the player's menu as before */
+function startNameEdit(i){
+  const P=panels[i].P,p=S.players[i],def='Player '+(i+1);
+  if(P.querySelector('.nameedit'))return;
+  const inp=el('input','nameedit');inp.type='text';inp.maxLength=16;inp.placeholder=def;inp.autocomplete='off';inp.setAttribute('aria-label','Player name');
+  let finished=false;
+  const finish=apply=>{
+    if(finished)return;finished=true;
+    const v=inp.value.trim();if(apply&&v)p.name=v;
+    inp.remove();update();
+  };
+  inp.onkeydown=e=>{if(e.key==='Enter')finish(true);else if(e.key==='Escape')finish(false)};
+  inp.onblur=()=>finish(true);
+  P.append(inp);inp.focus();
 }
 function adjust(i,d){
   record('life'+i);
