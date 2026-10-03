@@ -238,7 +238,7 @@ function defeatCauses(p,i){
   if(p.life<=0)c.push({key:'life',type:'life'});
   return c;
 }
-let gameOverShown=null,summaryTimer=null;
+let gameOverShown=null,summaryTimer=null,gameIsOver=false;
 function dead(p){return p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
 function update(){
   S.players.forEach((p,i)=>{
@@ -296,6 +296,7 @@ function update(){
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
   const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
+  gameIsOver=over;
   if(gameOverShown===null)gameOverShown=over;
   else if(over&&!gameOverShown){
     gameOverShown=true;clearTimeout(summaryTimer);
@@ -514,7 +515,7 @@ function pickRandomPlayer(){
 $('pickguard').onclick=endPick;
 /* game summary: life total after every life event, drawn to a PNG (shown as an <img> so iOS long-press Save also works) */
 function drawSummary(cv,W){
-  const n=S.players.length,u=W/360,H=Math.round((344+28*n)*u);cv.width=W;cv.height=H;
+  const n=S.players.length,u=W/360,H=Math.round((364+28*n)*u);cv.width=W;cv.height=H;
   const c=cv.getContext('2d'),F=(sz,w)=>`${w||500} ${sz*u}px -apple-system,"Segoe UI",system-ui,sans-serif`;
   c.fillStyle='#0f1115';c.fillRect(0,0,W,H);c.textBaseline='alphabetic';c.textAlign='left';
   const alive=S.players.map((q,i)=>i).filter(i=>!dead(S.players[i])),win=n>1&&alive.length===1?alive[0]:null;
@@ -522,11 +523,16 @@ function drawSummary(cv,W){
   c.fillStyle='#9aa0ab';c.font=F(11);c.fillText(`${MODES[S.mode].label} · ${n} players · ${fmt(S.elapsed)} · ${new Date().toLocaleDateString()}`,16*u,50*u);
   c.font=F(15,800);c.fillStyle=win!=null?'#fbbf24':'#9aa0ab';
   c.fillText(win!=null?`🏆 ${S.players[win].name} wins`:(alive.length===0?'Draw — nobody left standing':'Game in progress'),16*u,76*u);
+  c.font=F(13,700);c.fillStyle='#f3f4f6';c.fillText('Life Totals',16*u,100*u);
   const start=MODES[S.mode].life,now=S.elapsed;
-  const series=S.players.map(q=>{const pts=[[0,start]];q.log.slice().sort((a,b)=>a.t-b.t).forEach(e=>pts.push([e.t,e.life]));pts.push([Math.max(now,pts[pts.length-1][0]),q.life]);return pts});
+  const series=S.players.map(q=>{
+    const pts=[[0,start]];q.log.slice().sort((a,b)=>a.t-b.t).forEach(e=>pts.push([e.t,Math.max(0,e.life)]));
+    pts.push([Math.max(now,pts[pts.length-1][0]),Math.max(0,q.life)]);
+    if(q.life<=0){let k=pts.length-1;while(k>0&&pts[k-1][1]<=0)k--;pts.length=k+1}   // line stops where the player reached 0
+    return pts});
   const all=series.flat(),tmax=Math.max(1,...all.map(a=>a[0]));
-  let lo=Math.min(0,...all.map(a=>a[1])),hi=Math.max(start,...all.map(a=>a[1]));const pad=Math.max(2,(hi-lo)*.05);lo-=pad;hi+=pad;
-  const L=44*u,R=W-16*u,T=92*u,B=300*u,X=t=>L+(R-L)*t/tmax,Y=v=>B-(B-T)*(v-lo)/(hi-lo);
+  let lo=0,hi=Math.max(start,...all.map(a=>a[1]));const pad=Math.max(2,hi*.05);lo=-pad*.6;hi+=pad;
+  const L=44*u,R=W-16*u,T=116*u,B=318*u,X=t=>L+(R-L)*t/tmax,Y=v=>B-(B-T)*(v-lo)/(hi-lo);
   const step=[1,2,5,10,20,50,100,200].find(st=>(hi-lo)/st<=6)||500;
   c.font=F(10);c.textAlign='right';c.lineWidth=1*u;
   for(let v=Math.ceil(lo/step)*step;v<=hi;v+=step){c.strokeStyle='rgba(255,255,255,.08)';c.beginPath();c.moveTo(L,Y(v));c.lineTo(R,Y(v));c.stroke();c.fillStyle='#9aa0ab';c.fillText(v,L-6*u,Y(v)+3.5*u)}
@@ -552,14 +558,14 @@ function drawSummary(cv,W){
     c.font=F(10);c.fillStyle='#9aa0ab';const maxW=W-16*u-70*u-36*u;
     while(sub&&c.measureText(sub).width>maxW)sub=sub.slice(0,-2)+'…';
     c.fillText(sub,36*u,y+22*u);
-    c.textAlign='right';c.font=F(17,800);c.fillStyle=dead(q)?'#9aa0ab':'#f3f4f6';c.fillText(q.life,W-16*u,y+14*u);c.textAlign='left';
+    c.textAlign='right';c.font=F(17,800);c.fillStyle=dead(q)?'#9aa0ab':'#f3f4f6';c.fillText(Math.max(0,q.life),W-16*u,y+14*u);c.textAlign='left';
   });
 }
 let sumUrl=null;
 function openSummary(){
   const cv=document.createElement('canvas');drawSummary(cv,1080);
   modal(`<h2>🏁 Game over</h2><img id="sumimg" alt="Life totals over the game" style="width:100%;border-radius:12px;display:block;min-height:120px;background:#0f1115">
-<p class="hint">Life total after each life change. Press and hold the picture to save it.</p>
+<p class="hint">Press and hold the picture to save it.</p>
 <button class="big" style="margin-top:12px" id="sshare" disabled>Share image</button>
 <button class="big" style="margin-top:8px" id="x">Close</button>`,card=>{
     let file=null;
@@ -635,7 +641,7 @@ function nearestPos(x,y){
 addEventListener('resize',()=>placeBar(bar.dataset.pos,false));
 (()=>{let pos='center';try{pos=localStorage.getItem(BPOS)||'center'}catch(e){}pos=({top:'start',bottom:'end'})[pos]||pos;if(!['center','start','end'].includes(pos))pos='center';placeBar(pos,false);requestAnimationFrame(()=>placeBar(pos,false))})();
 
-setInterval(()=>{if(!S.paused){S.elapsed++;if(S.elapsed%5===0)save()}$('timer').textContent=fmt(S.elapsed)},1000);
+setInterval(()=>{if(!S.paused&&!gameIsOver){S.elapsed++;if(S.elapsed%5===0)save()}$('timer').textContent=fmt(S.elapsed)},1000);
 
 /* keep screen awake */
 let lock=null;
