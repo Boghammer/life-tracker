@@ -30,6 +30,18 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 @keyframes twinkle{0%{opacity:0;transform:scale(.2) rotate(0)}50%{opacity:1;transform:scale(1) rotate(90deg)}100%{opacity:0;transform:scale(.2) rotate(180deg)}}
 .sparkles .first{position:absolute;left:0;right:0;top:34px;text-align:center;font-size:22px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:1;animation:none;color:#fff}
 #pickguard{position:fixed;inset:0;z-index:15;display:none}
+.panel.charging .life span{animation:charge 1s linear forwards}
+@keyframes charge{to{transform:scale(1.14);text-shadow:0 0 18px #fff,0 0 36px var(--accent)}}
+.exact{position:absolute;inset:0;z-index:11;background:rgba(15,17,21,.97);display:flex;flex-direction:column;gap:6px;padding:8px;color:#fff}
+.exact .disp{text-align:center;font-weight:800;font-size:min(11vw,8vh);line-height:1.1;font-variant-numeric:tabular-nums;min-height:1.1em}
+.exact .disp.ph{opacity:.4}
+.exact .hintline{text-align:center;font-size:11px;color:var(--muted);margin-top:-4px}
+.exact .pad{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(4,1fr);gap:6px}
+.exact button{background:#262a33;border-radius:10px;font-size:min(7vw,5vh);font-weight:700;min-height:0}
+.exact button:active{background:#3b4150}
+.exact .acts{display:flex;gap:6px;height:min(12vw,9vh);min-height:36px}
+.exact .acts button{flex:1}
+.exact .acts .set{background:var(--accent);color:#000}
 .panel.dead::after{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;background:rgba(0,0,0,.35);-webkit-backdrop-filter:grayscale(.9) brightness(.55);backdrop-filter:grayscale(.9) brightness(.55)}
 .panel.champ{filter:brightness(1.15);box-shadow:inset 0 0 0 7px var(--accent),inset 0 0 50px 14px rgba(251,191,36,.7);z-index:5;animation:pulse 1s ease-in-out infinite}
 .sparkles .first.xl{font-size:min(9vw,7vh);top:auto;bottom:12%;color:#fde68a;text-shadow:0 0 10px #000,0 0 18px var(--accent)}
@@ -70,7 +82,9 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 
 /* center bar */
 #bar{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);touch-action:none;z-index:20;display:flex;align-items:center;gap:4px;background:rgba(15,17,21,.92);border:1px solid #333;border-radius:999px;padding:4px 6px;box-shadow:0 4px 20px rgba(0,0,0,.5)}
-#bar button{width:42px;height:42px;border-radius:50%;font-size:20px}
+#bar button{width:40px;height:42px;border-radius:50%;font-size:20px}
+#bar button:disabled{opacity:.3;cursor:default}
+#bar button:disabled:active{background:none}
 #bar button:active{background:#333}
 #bar.snap{transition:left .2s ease,top .2s ease}
 #bar.drag{opacity:.85}
@@ -150,6 +164,8 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
   <div id="grip" title="Drag to move"><span>⋮⋮</span></div>
   <button id="bMenu" title="New game / settings">⚙️</button>
   <button id="bTools" title="Dice &amp; coin">🎲</button>
+  <button id="bUndo" title="Undo" disabled>↶</button>
+  <button id="bRedo" title="Redo" disabled>↷</button>
   <div id="timer">0:00</div>
   <button id="bPause" title="Pause timer">⏸</button>
 </div>
@@ -185,13 +201,18 @@ function render(){
   const n=S.players.length,topN=Math.floor(n/2);
   S.players.forEach((p,i)=>{
     const P=el('div','panel n'+n);P.style.background=colorOf(i);
-    P.append(el('div','name'),el('div','life'),el('div','delta'),el('div','badges'),el('div','cdmg'),el('div','status'));
+    P.append(el('div','name'),el('div','life','<span></span>'),el('div','delta'),el('div','badges'),el('div','cdmg'),el('div','status'));
     const mk=(dir)=>{
       const h=el('div','half '+(dir>0?'plus':'minus'),'<span>'+(dir>0?'+':'−')+'</span>');
       let t,iv,held,shown=false;
-      const stop=()=>{clearTimeout(t);clearInterval(iv)};
+      const stop=()=>{clearTimeout(t);clearInterval(iv);P.classList.remove('charging')};
       h.addEventListener('pointerdown',e=>{e.preventDefault();held=false;
-        t=setTimeout(()=>{held=true;adjust(i,dir*5);iv=setInterval(()=>adjust(i,dir*5),450)},500)});
+        const r=P.querySelector('.life span').getBoundingClientRect(),pad=14;
+        const onNum=e.clientX>=r.left-pad&&e.clientX<=r.right+pad&&e.clientY>=r.top-pad&&e.clientY<=r.bottom+pad;
+        if(onNum){  // press and hold directly on the life total (1s) -> type an exact value
+          P.classList.add('charging');
+          t=setTimeout(()=>{held=true;P.classList.remove('charging');buzz();openExact(i)},1000);
+        }else t=setTimeout(()=>{held=true;adjust(i,dir*5);iv=setInterval(()=>adjust(i,dir*5),450)},500)});
       h.addEventListener('pointerup',()=>{stop();if(!held)adjust(i,dir)});
       h.addEventListener('pointerleave',stop);h.addEventListener('pointercancel',stop);
       h.addEventListener('contextmenu',e=>e.preventDefault());
@@ -231,7 +252,7 @@ function update(){
       else p.cmds.forEach(c=>{const im=el('img');im.alt='';im.src=c.art;ar.append(im)});
       P.prepend(ar)}
     P.style.background=colorOf(i);P.style.color=isLight(colorOf(i))?'#111':'#fff';
-    P.querySelector('.life').textContent=p.life;
+    P.querySelector('.life span').textContent=p.life;
     P.classList.toggle('dead',dead(p));
     const isDead=dead(p),aliveCount=S.players.filter(q=>!dead(q)).length;
     if(isDead){
@@ -270,7 +291,54 @@ function update(){
   });
   save();
 }
+/* undo / redo: snapshots of the game numbers (life, counters, commander damage, tokens, log). Rapid repeated changes
+   to the same thing within 1.5s are one step, so a burst of taps undoes together. */
+const undoStack=[],redoStack=[];let lastKey=null,lastT=0;
+const snap=()=>JSON.stringify({pl:S.players.map(p=>({life:p.life,poison:p.poison,energy:p.energy,exp:p.exp,cmdr:p.cmdr,cmdrB:p.cmdrB,log:p.log})),monarch:S.monarch,initiative:S.initiative});
+function record(key){
+  const now=Date.now();
+  if(key===lastKey&&now-lastT<1500){lastT=now;return}
+  undoStack.push(snap());if(undoStack.length>100)undoStack.shift();
+  redoStack.length=0;lastKey=key;lastT=now;syncHistoryButtons();
+}
+function clearHistory(){undoStack.length=0;redoStack.length=0;lastKey=null;syncHistoryButtons()}
+function syncHistoryButtons(){$('bUndo').disabled=!undoStack.length;$('bRedo').disabled=!redoStack.length}
+function restore(str){
+  const d=JSON.parse(str);
+  d.pl.forEach((q,i)=>Object.assign(S.players[i],q));S.monarch=d.monarch;S.initiative=d.initiative;
+  panels.forEach(x=>{clearTimeout(x.dt);x.delta=0;x.P.querySelector('.delta').classList.remove('show')});
+  lastKey=null;update();
+  panels.forEach((x,i)=>{if(x.P.querySelector('.sheet'))openSheet(i)});
+  syncHistoryButtons();buzz();
+}
+function undo(){if(!undoStack.length)return;redoStack.push(snap());restore(undoStack.pop())}
+function redo(){if(!redoStack.length)return;undoStack.push(snap());restore(redoStack.pop())}
+
+/* exact life entry: an on-panel keypad (rotates with the panel, no phone keyboard needed) */
+function openExact(i){
+  const p=S.players[i],P=panels[i].P;P.querySelector('.exact')?.remove();
+  let buf='';
+  const ex=el('div','exact');
+  ex.innerHTML=`<div class="disp ph"></div><div class="hintline">Set exact life total</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'±',0,'⌫'].map(k=>`<button data-k="${k}">${k}</button>`).join('')}</div><div class="acts"><button class="cancel">Cancel</button><button class="set">Set</button></div>`;
+  const disp=ex.querySelector('.disp');
+  const show=()=>{disp.textContent=buf===''?p.life:buf;disp.classList.toggle('ph',buf==='')};
+  ex.querySelectorAll('.pad button').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k;buzz();
+    if(k==='⌫')buf=buf.slice(0,-1);
+    else if(k==='±')buf=buf.startsWith('-')?buf.slice(1):'-'+buf;
+    else if(buf.replace('-','').length<4)buf=(buf==='0'||buf==='-0')?buf.replace('0','')+k:buf+k;
+    show();
+  });
+  ex.querySelector('.cancel').onclick=()=>ex.remove();
+  ex.querySelector('.set').onclick=()=>{
+    const v=parseInt(buf,10);
+    if(!isNaN(v)&&v!==p.life){record('exact'+Date.now());const d=v-p.life;p.life=v;logEvent(p,'life set',d,v);buzz();update()}
+    ex.remove();
+  };
+  show();P.append(ex);
+}
 function adjust(i,d){
+  record('life'+i);
   const p=S.players[i];p.life+=d;buzz();
   const x=panels[i];x.delta+=d;
   const dl=x.P.querySelector('.delta');dl.textContent=(x.delta>0?'+':'')+x.delta;dl.classList.add('show');
@@ -280,7 +348,7 @@ function adjust(i,d){
 }
 function cmdrAdjust(i,k,d){
   const p=S.players[i],j=+k.slice(1),a=k[0]==='c'?p.cmdr:p.cmdrB;
-  if(a[j]+d<0)return false;buzz();a[j]+=d;p.life-=d;logEvent(p,'cmdr dmg from '+S.players[j].name,-d,p.life);update();return true}
+  if(a[j]+d<0)return false;record('cmdr'+i+k);buzz();a[j]+=d;p.life-=d;logEvent(p,'cmdr dmg from '+S.players[j].name,-d,p.life);update();return true}
 function logEvent(p,k,d,v){p.log.push({t:S.elapsed,d,life:v,k})}
 
 /* player sheet (rotates with panel) */
@@ -346,13 +414,13 @@ function openSheet(i){
   };
   sh.querySelectorAll('.stepper button').forEach(b=>b.onclick=()=>{
     const k=b.dataset.k,d=+b.dataset.d;buzz();
-    if(k==='life'){p.life+=d;logEvent(p,'life',d,p.life)}
+    if(k==='life'){record('life'+i);p.life+=d;logEvent(p,'life',d,p.life)}
     else if(k[0]==='c'||k[0]==='d'){if(!cmdrAdjust(i,k,d))return}
-    else{if(p[k]+d<0)return;p[k]+=d}
+    else{if(p[k]+d<0)return;record(k+i);p[k]+=d}
     update();const y=sh.scrollTop;openSheet(i);P.querySelector('.sheet').scrollTop=y;
   });
-  sh.querySelector('#tm').onclick=()=>{S.monarch=S.monarch===i?null:i;update();openSheet(i)};
-  sh.querySelector('#ti').onclick=()=>{S.initiative=S.initiative===i?null:i;update();openSheet(i)};
+  sh.querySelector('#tm').onclick=()=>{record('tok');S.monarch=S.monarch===i?null:i;update();openSheet(i)};
+  sh.querySelector('#ti').onclick=()=>{record('tok');S.initiative=S.initiative===i?null:i;update();openSheet(i)};
 }
 
 /* modal helpers */
@@ -418,11 +486,12 @@ $('bMenu').onclick=()=>{
 <button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
     const pick=(sel,attr,fn)=>c.querySelectorAll(sel).forEach(b=>b.onclick=()=>{c.querySelectorAll(sel).forEach(y=>y.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr])});
     pick('[data-m]','m',v=>mode=v);pick('[data-n]','n',v=>n=+v);
-    c.querySelector('#go').onclick=()=>{S=fresh(n,mode);closeModal();render();wake()};
-    c.querySelector('#rs').onclick=()=>{S=fresh(S.players.length,S.mode);closeModal();render()};
+    c.querySelector('#go').onclick=()=>{S=fresh(n,mode);clearHistory();closeModal();render();wake()};
+    c.querySelector('#rs').onclick=()=>{S=fresh(S.players.length,S.mode);clearHistory();closeModal();render()};
     c.querySelector('#x').onclick=closeModal;
   });
 };
+$('bUndo').onclick=undo;$('bRedo').onclick=redo;
 $('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'▶️':'⏸';save()};
 
 /* draggable control bar: snaps to center or any edge */
