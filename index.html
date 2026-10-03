@@ -25,6 +25,23 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 #app.picking .panel:not(.hl):not(.win){filter:brightness(.45)}
 .panel.win{filter:brightness(1.15);box-shadow:inset 0 0 0 7px var(--accent),inset 0 0 50px 14px rgba(251,191,36,.7);z-index:5;animation:pulse 1s ease-in-out infinite}
 @keyframes pulse{50%{box-shadow:inset 0 0 0 7px #fff,inset 0 0 70px 22px rgba(251,191,36,.9)}}
+.cbtn{position:absolute;bottom:46px;right:4px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.35);font-size:18px;z-index:3;color:#fff}
+.cbtn[hidden]{display:none}
+.cmdr-ov{position:absolute;inset:0;z-index:11;background:rgba(15,17,21,.97);display:flex;flex-direction:column;gap:5px;padding:7px;color:#fff;border:1px solid #3a3320;border-radius:14px}
+.cmdr-ov .ttl{font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);line-height:1.1}
+.cmdr-ov .sub{font-size:11px;color:var(--muted);margin-top:-3px}
+.cmdr-ov .rows{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.crow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;background:#1c2029;border:1px solid #2b303b;border-radius:12px;padding:5px 6px}
+.crow .pill{flex:none;min-width:32px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.crow .lbl{flex:1 1 70px;min-width:0;font-size:12px;line-height:1.15;overflow-wrap:anywhere}
+.crow .stp{flex:none;display:flex;align-items:center;gap:6px;margin-left:auto}
+.crow .stp button{width:30px;height:30px;border-radius:50%;background:#2b303b;font-size:18px;font-weight:700;color:#fff}
+.crow .stp button.plus{background:var(--accent);color:#000}
+.crow .cnt{min-width:24px;text-align:center;line-height:1}
+.crow .val{display:block;font-size:18px;font-weight:800}
+.crow .of{display:block;font-size:8px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-top:1px}
+.crow.lethal{border-color:var(--danger)}.crow.lethal .val{color:var(--danger)}
+.cmdr-ov .done{flex:none;height:38px;border-radius:12px;background:var(--accent);color:#000;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 .sparkles{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
 .sparkles span{position:absolute;color:#fff;text-shadow:0 0 6px #fde68a,0 0 14px var(--accent);opacity:0;animation:twinkle 1s ease-in-out infinite}
 @keyframes twinkle{0%{opacity:0;transform:scale(.2) rotate(0)}50%{opacity:1;transform:scale(1) rotate(90deg)}100%{opacity:0;transform:scale(.2) rotate(180deg)}}
@@ -229,6 +246,7 @@ function render(){
     };
     P.append(mk(-1),mk(1));
     const g=el('button','gear','☰');g.onclick=()=>openSheet(i);P.append(g);
+    const cb=el('button','cbtn','⚔️');cb.title='Commander damage';cb.onclick=()=>openCmdr(i);P.append(cb);
     (i<topN?$('rowTop'):$('rowBot')).append(P);panels.push({P,delta:0,dt:null});
   });
   if(!topN)$('rowTop').style.display='none';else $('rowTop').style.display='';
@@ -251,6 +269,7 @@ function update(){
   S.players.forEach((p,i)=>{
     const {P}=panels[i];
     const nm=P.querySelector('.name');nm.textContent=p.name;
+    P.querySelector('.cbtn').hidden=!MODES[S.mode].cmdr;   // commander damage shortcut: Commander/Brawl only
     nm.classList.toggle('editable',p.name==='Player '+(i+1));  // still the default: tap the name to rename it right here
     if(p.cmds.length){const sm=el('small');sm.textContent=p.cmds.map(c=>c.name).join(' & ')+' · art: '+[...new Set(p.cmds.map(c=>c.artist).filter(Boolean))].join(', ');nm.append(sm)}
     P.classList.toggle('art',p.cmds.length>0);
@@ -324,7 +343,7 @@ function restore(str){
   d.pl.forEach((q,i)=>Object.assign(S.players[i],q));S.monarch=d.monarch;S.initiative=d.initiative;
   panels.forEach(x=>{clearTimeout(x.dt);x.delta=0;x.P.querySelector('.delta').classList.remove('show')});
   lastKey=null;update();
-  panels.forEach((x,i)=>{if(x.P.querySelector('.sheet'))openSheet(i)});
+  panels.forEach((x,i)=>{if(x.P.querySelector('.sheet'))openSheet(i);if(x.P.querySelector('.cmdr-ov'))openCmdr(i)});
   syncHistoryButtons();buzz();
 }
 function undo(){if(!undoStack.length)return;redoStack.push(snap());restore(undoStack.pop())}
@@ -375,6 +394,34 @@ function startNameEdit(i){
   inp.onkeydown=e=>{if(e.key==='Enter')finish(true);else if(e.key==='Escape')finish(false)};
   inp.onblur=()=>finish(true);
   P.append(inp);inp.focus();
+}
+/* quick commander-damage overlay (rotates with the panel) */
+function openCmdr(i){
+  const P=panels[i].P,p=S.players[i];P.querySelector('.cmdr-ov')?.remove();
+  const ov=el('div','cmdr-ov');
+  ov.innerHTML='<div class="ttl">Commander damage</div><div class="sub"></div><div class="rows"></div><button class="done">Done</button>';
+  ov.querySelector('.sub').textContent='Damage taken by '+p.name;
+  const rows=ov.querySelector('.rows');
+  const draw=()=>{
+    rows.innerHTML='';
+    S.players.forEach((o,j)=>{
+      for(let k=0;k<Math.max(1,o.cmds.length);k++){
+        const key=(k?'d':'c')+j,val=(k?p.cmdrB:p.cmdr)[j];
+        const row=el('div','crow'+(val>=21?' lethal':''));
+        const col=colorOf(j);
+        row.innerHTML='<div class="pill"></div><div class="lbl"></div><div class="stp"><button class="minus">−</button><div class="cnt"><span class="val"></span><span class="of">of 21</span></div><button class="plus">+</button></div>';
+        const pill=row.querySelector('.pill');pill.textContent='P'+(j+1);pill.style.background=col;pill.style.color=isLight(col)?'#111':'#fff';
+        row.querySelector('.lbl').textContent='From '+(j===i?'my own ':'')+(o.cmds[k]?o.cmds[k].name:o.name);
+        row.querySelector('.val').textContent=val;
+        row.querySelector('.minus').onclick=()=>{if(cmdrAdjust(i,key,-1))draw()};
+        row.querySelector('.plus').onclick=()=>{cmdrAdjust(i,key,1);draw()};
+        rows.append(row);
+      }
+    });
+  };
+  draw();
+  ov.querySelector('.done').onclick=()=>ov.remove();
+  P.append(ov);
 }
 function adjust(i,d){
   record('life'+i);
