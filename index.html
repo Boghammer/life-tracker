@@ -30,7 +30,9 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 @keyframes twinkle{0%{opacity:0;transform:scale(.2) rotate(0)}50%{opacity:1;transform:scale(1) rotate(90deg)}100%{opacity:0;transform:scale(.2) rotate(180deg)}}
 .sparkles .first{position:absolute;left:0;right:0;top:34px;text-align:center;font-size:22px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:1;animation:none;color:#fff}
 #pickguard{position:fixed;inset:0;z-index:15;display:none}
-.panel.dead{filter:grayscale(.9) brightness(.55)}
+.panel.dead::after{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;background:rgba(0,0,0,.35);-webkit-backdrop-filter:grayscale(.9) brightness(.55);backdrop-filter:grayscale(.9) brightness(.55)}
+.panel.champ{filter:brightness(1.15);box-shadow:inset 0 0 0 7px var(--accent),inset 0 0 50px 14px rgba(251,191,36,.7);z-index:5;animation:pulse 1s ease-in-out infinite}
+.sparkles .first.xl{font-size:min(9vw,7vh);top:auto;bottom:12%;color:#fde68a;text-shadow:0 0 10px #000,0 0 18px var(--accent)}
 .panel .name{position:absolute;top:8px;left:0;right:0;text-align:center;font-size:14px;font-weight:600;opacity:.85;z-index:2;pointer-events:none}
 .panel .life{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:min(22vw,22vh);font-weight:800;font-variant-numeric:tabular-nums;pointer-events:none;text-shadow:0 2px 12px rgba(0,0,0,.35)}
 .panel.n5 .life,.panel.n6 .life{font-size:min(16vw,15vh)}
@@ -59,8 +61,12 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 .badge{background:rgba(0,0,0,.4);border-radius:999px;padding:2px 8px;font-size:13px;font-weight:600;white-space:nowrap}
 .badge.crown{background:var(--accent);color:#000}
 .gear{position:absolute;bottom:4px;right:4px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.35);font-size:18px;z-index:3}
-.status{position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:28px;font-weight:800;letter-spacing:.1em;z-index:2;pointer-events:none;text-transform:uppercase}
-.panel.dead .status{display:flex}.panel.dead .life{opacity:.3}
+.status{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 10px;text-align:center;z-index:5;pointer-events:none}
+.status .icon{font-size:min(30vw,26vh);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
+.panel.n5 .status .icon,.panel.n6 .status .icon{font-size:min(22vw,18vh)}
+.status .why{font-size:min(7vw,5.5vh);font-weight:800;letter-spacing:.04em;text-shadow:0 2px 8px rgba(0,0,0,.8);color:#fff}
+.status .icon+.why{font-size:min(5vw,4vh);text-transform:uppercase;letter-spacing:.14em}
+.panel.dead .status{display:flex}.panel.dead .life{opacity:.25}
 
 /* center bar */
 #bar{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);touch-action:none;z-index:20;display:flex;align-items:center;gap:4px;background:rgba(15,17,21,.92);border:1px solid #333;border-radius:999px;padding:4px 6px;box-shadow:0 4px 20px rgba(0,0,0,.5)}
@@ -179,7 +185,7 @@ function render(){
   const n=S.players.length,topN=Math.floor(n/2);
   S.players.forEach((p,i)=>{
     const P=el('div','panel n'+n);P.style.background=colorOf(i);
-    P.append(el('div','name'),el('div','life'),el('div','delta'),el('div','badges'),el('div','cdmg'),el('div','status','Defeated'));
+    P.append(el('div','name'),el('div','life'),el('div','delta'),el('div','badges'),el('div','cdmg'),el('div','status'));
     const mk=(dir)=>{
       const h=el('div','half '+(dir>0?'plus':'minus'),'<span>'+(dir>0?'+':'−')+'</span>');
       let t,iv,held,shown=false;
@@ -197,6 +203,17 @@ function render(){
   });
   if(!topN)$('rowTop').style.display='none';else $('rowTop').style.display='';
   update();
+}
+/* why a player is out: commander damage > poison > life; a recorded cause is kept while it still applies */
+function defeatCauses(p,i){
+  const c=[];
+  S.players.forEach((o,j)=>{
+    if(p.cmdr[j]>=21)c.push({key:`c${j}a`,type:'cmdr',by:(o.cmds[0]&&o.cmds[0].name)||o.name});
+    if(p.cmdrB[j]>=21)c.push({key:`c${j}b`,type:'cmdr',by:(o.cmds[1]&&o.cmds[1].name)||o.name});
+  });
+  if(p.poison>=10)c.push({key:'poison',type:'poison'});
+  if(p.life<=0)c.push({key:'life',type:'life'});
+  return c;
 }
 function dead(p){return p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
 function update(){
@@ -216,7 +233,20 @@ function update(){
     P.style.background=colorOf(i);P.style.color=isLight(colorOf(i))?'#111':'#fff';
     P.querySelector('.life').textContent=p.life;
     P.classList.toggle('dead',dead(p));
-    P.querySelector('.status').textContent=p.life<=0?'Defeated':p.poison>=10?'Poisoned':'Commander'
+    const isDead=dead(p),aliveCount=S.players.filter(q=>!dead(q)).length;
+    if(isDead){
+      const cs=defeatCauses(p,i),cur=cs.find(c=>p.defeat&&c.key===p.defeat.key)||cs[0];
+      if(!p.defeat||p.defeat.key!==cur.key||p.defeat.by!==cur.by)p.defeat=cur;
+    }else delete p.defeat;
+    const st=P.querySelector('.status'),d=p.defeat;
+    st.innerHTML=!d?'':d.type==='life'?'<div class="icon">☠️</div><div class="why">Defeated</div>'
+      :d.type==='poison'?'<div class="icon">🧪</div><div class="why">Poisoned</div>'
+      :`<div class="why">Defeated by ${esc(d.by)}!</div>`;
+    const champ=!isDead&&aliveCount===1&&S.players.length>1;
+    P.classList.toggle('champ',champ);
+    let cs2=P.querySelector('.sparkles.champ-sp');
+    if(champ&&!cs2){P.append(makeSparkles('Winner!','champ-sp',true))}
+    else if(!champ&&cs2)cs2.remove();
     const cd=P.querySelector('.cdmg');cd.innerHTML='';
     if(MODES[S.mode].cmdr)S.players.forEach((o,j)=>{
       [['c',p.cmdr,0],...(o.cmds.length>1?[['d',p.cmdrB,1]]:[])].forEach(([pre,arr,k])=>{
@@ -342,11 +372,18 @@ $('bTools').onclick=()=>modal(`<h2>🎲 Dice &amp; coin</h2>
   c.querySelector('#x').onclick=closeModal;
 });
 
+function makeSparkles(label,cls,big){
+  const sp=el('div','sparkles '+cls);
+  for(let k=0;k<28;k++){const e=el('span','',['✦','✧','✨','⋆'][k%4]);
+    e.style.left=Math.random()*94+'%';e.style.top=Math.random()*90+'%';e.style.fontSize=(12+Math.random()*22)+'px';
+    e.style.animationDelay=(Math.random()*1.2)+'s';e.style.animationDuration=(0.8+Math.random()*0.8)+'s';sp.append(e)}
+  sp.append(el('div','first'+(big?' xl':''),label));return sp;
+}
 /* random first player: sweep clockwise for ~4s (decelerating), land on the pick, then 3s of sparkles */
 let pickTimers=[];
 function endPick(){
   pickTimers.forEach(clearTimeout);pickTimers=[];
-  panels.forEach(x=>{x.P.classList.remove('hl','win');x.P.querySelector('.sparkles')?.remove()});
+  panels.forEach(x=>{x.P.classList.remove('hl','win');x.P.querySelector('.sparkles.pick')?.remove()});
   $('app').classList.remove('picking');$('pickguard').style.display='none';
 }
 function pickRandomPlayer(){
@@ -366,11 +403,7 @@ function pickRandomPlayer(){
   }
   pickTimers.push(setTimeout(()=>{
     const P=panels[w].P;P.classList.remove('hl');P.classList.add('win');
-    const sp=el('div','sparkles');
-    for(let k=0;k<28;k++){const e=el('span','',['✦','✧','✨','⋆'][k%4]);
-      e.style.left=Math.random()*94+'%';e.style.top=Math.random()*90+'%';e.style.fontSize=(12+Math.random()*22)+'px';
-      e.style.animationDelay=(Math.random()*1.2)+'s';e.style.animationDuration=(0.8+Math.random()*0.8)+'s';sp.append(e)}
-    const f=el('div','first','goes first');sp.append(f);P.append(sp);buzz();
+    P.append(makeSparkles('goes first','pick'));buzz();
   },4000+120));
   pickTimers.push(setTimeout(endPick,4000+120+3000));
 }
