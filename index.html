@@ -260,18 +260,18 @@ function render(){
     P.querySelector('.name').onclick=()=>{if(P.querySelector('.name').classList.contains('editable'))startNameEdit(i)};
     const mk=(dir)=>{
       const h=el('div','half '+(dir>0?'plus':'minus'),'<span>'+(dir>0?'+':'−')+'</span>');
-      let t,iv,held,shown=false;
+      let t,iv,held,down=false;
       const stop=()=>{clearTimeout(t);clearInterval(iv);P.classList.remove('charging')};
-      h.addEventListener('pointerdown',e=>{e.preventDefault();held=false;
+      h.addEventListener('pointerdown',e=>{e.preventDefault();held=false;down=true;
         const r=P.querySelector('.life span').getBoundingClientRect(),pad=14;
         const onNum=e.clientX>=r.left-pad&&e.clientX<=r.right+pad&&e.clientY>=r.top-pad&&e.clientY<=r.bottom+pad;
         if(onNum){  // press and hold directly on the life total (1s) -> type an exact value
           P.classList.add('charging');
           t=setTimeout(()=>{held=true;P.classList.remove('charging');buzz();openExact(i)},1000);
         }else t=setTimeout(()=>{held=true;adjust(i,dir*5);iv=setInterval(()=>adjust(i,dir*5),450)},500)});
-      h.addEventListener('pointerup',()=>{stop();if(!held)adjust(i,dir);tryFocusExact()});
+      h.addEventListener('pointerup',()=>{const was=down;down=false;stop();if(was&&!held)adjust(i,dir);tryFocusExact()});
       h.addEventListener('touchend',tryFocusExact);
-      h.addEventListener('pointerleave',stop);h.addEventListener('pointercancel',stop);
+      const abort=()=>{down=false;stop()};h.addEventListener('pointerleave',abort);h.addEventListener('pointercancel',abort);
       h.addEventListener('contextmenu',e=>e.preventDefault());
       return h;
     };
