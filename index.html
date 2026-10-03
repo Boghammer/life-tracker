@@ -38,6 +38,9 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 .sw{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .sw button{width:36px;height:36px;border-radius:50%;border:3px solid transparent}
 .sw button.on{border-color:#fff}
+.sw button.taken{position:relative;opacity:.45;cursor:not-allowed}
+.sw button.taken::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;text-shadow:0 0 3px #000,0 0 3px #000}
+.sw .note{flex-basis:100%;font-size:12px;color:var(--muted);min-height:16px}
 .sw input{width:44px;height:36px;border:0;background:none;padding:0}
 .chip{display:flex;align-items:center;gap:5px;height:38px;padding:0 10px;border-radius:999px;background:rgba(0,0,0,.5);font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;touch-action:manipulation}
 .chip i{width:12px;height:12px;border-radius:50%;display:block;border:2px solid rgba(255,255,255,.8)}
@@ -125,6 +128,7 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#a16207','#7e22ce','#0e7490'];
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
 const colorOf=j=>S.players[j].color||COLORS[j];
+const takenBy=(c,i)=>S.players.findIndex((o,j)=>j!==i&&colorOf(j).toLowerCase()===c.toLowerCase());
 const isLight=c=>{const n=parseInt(c.slice(1),16);return (0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))/255>0.65};
 const MODES={standard:{label:'Standard',life:20,cmdr:false},commander:{label:'Commander',life:40,cmdr:true},brawl:{label:'Brawl',life:25,cmdr:true}};
 const KEY='mtg-life-v1';
@@ -232,7 +236,7 @@ function openSheet(i){
   h+='<h3>Commander</h3>';
   p.cmds.forEach((c,k)=>{h+=`<div class="cmd-cur"><img src="${esc(c.art)}" alt=""><span>${esc(c.name)}<br><small style="color:var(--muted)">art: ${esc(c.artist||'')}</small></span><button data-rm="${k}">Remove</button></div>`});
   if(p.cmds.length<2)h+=`<input class="cmd-search" id="cq" placeholder="${p.cmds.length?'Add partner / background…':'Search commander (Scryfall)…'}" autocomplete="off" autocapitalize="off"><div class="cmd-res" id="cres"></div>`;
-  h+='<h3>Panel color</h3><div class="sw">'+SWATCHES.map(c=>`<button data-c="${c}" class="${colorOf(i).toLowerCase()===c?'on':''}" style="background:${c}"></button>`).join('')+`<input type="color" id="cc" value="${colorOf(i)}" title="Custom color"></div>`;
+  h+='<h3>Panel color</h3><div class="sw">'+SWATCHES.map(c=>`<button data-c="${c}" class="${colorOf(i).toLowerCase()===c?'on':''}${takenBy(c,i)>=0?' taken':''}" style="background:${c}" title="${takenBy(c,i)>=0?'Used by '+esc(S.players[takenBy(c,i)].name):''}"></button>`).join('')+`<input type="color" id="cc" value="${colorOf(i)}" title="Custom color"><div class="note" id="cnote"></div></div>`;
   h+='<h3>Counters</h3>';
   const ctr=(key,label,sub,val,lethal)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1">+</button></div></div>`;
   h+=ctr('life','❤️ Life','',p.life,p.life<=0);
@@ -255,8 +259,8 @@ function openSheet(i){
   sh.querySelector('#nm').oninput=e=>{p.name=e.target.value;update()};
   sh.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{p.cmds.splice(+b.dataset.rm,1);update();openSheet(i)});
   let ct;const cres=sh.querySelector('#cres');
-  sh.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{p.color=b.dataset.c;update();openSheet(i)});
-  sh.querySelector('#cc').oninput=e=>{p.color=e.target.value;update()};
+  sh.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const t=takenBy(b.dataset.c,i);if(t>=0){sh.querySelector('#cnote').textContent=S.players[t].name+' is already using that color.';return}p.color=b.dataset.c;update();openSheet(i)});
+  sh.querySelector('#cc').oninput=e=>{const t=takenBy(e.target.value,i);if(t>=0){sh.querySelector('#cnote').textContent=S.players[t].name+' is already using that color.';return}sh.querySelector('#cnote').textContent='';p.color=e.target.value;update()};
   const cq=sh.querySelector('#cq');if(cq)cq.oninput=e=>{
     clearTimeout(ct);const q=e.target.value.trim();
     if(q.length<2){cres.innerHTML='';return}
