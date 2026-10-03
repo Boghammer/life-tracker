@@ -17,7 +17,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,"Segoe UI",sans-serif;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:inherit;border:0;background:none;touch-action:manipulation;cursor:pointer}
-#app{height:100%;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + var(--dockT,0px)) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + var(--dockB,0px)) env(safe-area-inset-left)}
+#app{height:100%;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + var(--dockT,0px)) calc(env(safe-area-inset-right) + var(--dockR,0px)) calc(env(safe-area-inset-bottom) + var(--dockB,0px)) calc(env(safe-area-inset-left) + var(--dockL,0px))}
 .row{flex:1;display:flex;min-height:0;gap:3px;padding:3px}
 .row.top .panel{transform:rotate(180deg)}
 .panel{flex:1;position:relative;border-radius:14px;overflow:hidden;min-width:0;transition:filter .3s}
@@ -59,11 +59,18 @@ button{font:inherit;color:inherit;border:0;background:none;touch-action:manipula
 #bar button:active{background:#333}
 #bar.snap{transition:left .2s ease,top .2s ease}
 #bar.drag{opacity:.85}
-#bar[data-pos=top],#bar[data-pos=bottom]{left:0;right:0;transform:none;border-radius:0;border-width:0;justify-content:center;gap:14px;height:56px;padding:0 8px}
-#bar[data-pos=top]{top:env(safe-area-inset-top);border-bottom:1px solid #333}
-#bar[data-pos=bottom]{top:auto;bottom:env(safe-area-inset-bottom);border-top:1px solid #333}
-#bar[data-pos=top] #timer,#bar[data-pos=bottom] #timer{font-size:18px;min-width:90px}
-#bar.drag{left:auto;right:auto;bottom:auto;transform:translate(-50%,-50%)!important;border-radius:999px!important;height:auto!important;padding:4px 6px!important;box-shadow:0 8px 28px rgba(0,0,0,.7)}
+#bar[data-pos=start],#bar[data-pos=end]{transform:none;border-radius:0;border-width:0;justify-content:center}
+#bar[data-pos=start][data-o=h],#bar[data-pos=end][data-o=h]{left:0;right:0;height:56px;gap:14px;padding:0 8px}
+#bar[data-pos=start][data-o=h]{top:env(safe-area-inset-top);border-bottom:1px solid #333}
+#bar[data-pos=end][data-o=h]{top:auto;bottom:env(safe-area-inset-bottom);border-top:1px solid #333}
+#bar[data-pos=start][data-o=v],#bar[data-pos=end][data-o=v]{top:0;bottom:0;width:60px;flex-direction:column;gap:10px;padding:8px 0}
+#bar[data-pos=start][data-o=v]{left:env(safe-area-inset-left);right:auto;border-right:1px solid #333}
+#bar[data-pos=end][data-o=v]{left:auto;right:env(safe-area-inset-right);border-left:1px solid #333}
+#bar[data-pos=start][data-o=h] #timer,#bar[data-pos=end][data-o=h] #timer{font-size:18px;min-width:90px}
+#bar[data-o=v][data-pos=start] #timer,#bar[data-o=v][data-pos=end] #timer{min-width:0;padding:4px 0;font-size:13px}
+#bar[data-o=v][data-pos=start] #grip,#bar[data-o=v][data-pos=end] #grip{width:42px;height:22px}
+#bar[data-o=v][data-pos=start] #grip span,#bar[data-o=v][data-pos=end] #grip span{display:block;transform:rotate(90deg)}
+#bar.drag{left:auto;right:auto;bottom:auto;width:auto!important;flex-direction:row!important;transform:translate(-50%,-50%)!important;border-radius:999px!important;height:auto!important;padding:4px 6px!important;border-width:1px!important;box-shadow:0 8px 28px rgba(0,0,0,.7)}
 #grip{width:22px;height:42px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px;cursor:grab;touch-action:none;letter-spacing:-2px}
 #timer{touch-action:none;font-variant-numeric:tabular-nums;font-size:15px;font-weight:600;padding:0 8px;min-width:64px;text-align:center;color:var(--muted)}
 
@@ -338,16 +345,18 @@ $('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'â–
 /* draggable control bar: snaps to center or any edge */
 const bar=$('bar'),BPOS='mtg-bar-pos';
 const probe=el('div');probe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';document.body.append(probe);
+const orient=()=>innerWidth<=innerHeight?'h':'v';  // h: bar docks along the top/bottom (short edges of a portrait screen)
 function placeBar(pos,animate){
-  bar.dataset.pos=pos;bar.classList.toggle('snap',!!animate&&pos==='center');
+  bar.dataset.pos=pos;bar.dataset.o=orient();bar.classList.toggle('snap',!!animate&&pos==='center');
   if(pos==='center'){bar.style.left='50%';bar.style.top='50%'}else{bar.style.left='';bar.style.top=''}
-  const h=pos==='center'?0:bar.offsetHeight;
-  const app=$('app').style;app.setProperty('--dockT',pos==='top'?h+'px':'0px');app.setProperty('--dockB',pos==='bottom'?h+'px':'0px');
+  const v=bar.dataset.o==='v',sz=pos==='center'?0:(v?bar.offsetWidth:bar.offsetHeight),st=pos==='start',en=pos==='end',a=$('app').style;
+  a.setProperty('--dockT',st&&!v?sz+'px':'0px');a.setProperty('--dockB',en&&!v?sz+'px':'0px');
+  a.setProperty('--dockL',st&&v?sz+'px':'0px');a.setProperty('--dockR',en&&v?sz+'px':'0px');
   try{localStorage.setItem(BPOS,pos)}catch(e){}
 }
-function nearestPos(y){
-  const H=innerHeight,t={center:H/2,top:0,bottom:H};
-  return Object.keys(t).reduce((b,k)=>Math.abs(y-t[k])<Math.abs(y-t[b])?k:b,'center');
+function nearestPos(x,y){
+  const v=orient()==='v',n=v?x:y,L=v?innerWidth:innerHeight,t={center:L/2,start:0,end:L};
+  return Object.keys(t).reduce((b,k)=>Math.abs(n-t[k])<Math.abs(n-t[b])?k:b,'center');
 }
 [$('grip'),$('timer')].forEach(h=>{
   let down=false,dx=0,dy=0;
@@ -356,13 +365,13 @@ function nearestPos(y){
     bar.classList.remove('snap');bar.classList.add('drag')});
   h.addEventListener('pointermove',e=>{if(!down)return;bar.style.left=(e.clientX-dx)+'px';bar.style.top=(e.clientY-dy)+'px'});
   const end=e=>{if(!down)return;down=false;bar.classList.remove('drag');
-    const pos=nearestPos(e.clientY);bar.style.left='';bar.style.top='';placeBar(pos,false);
+    const pos=nearestPos(e.clientX,e.clientY);bar.style.left='';bar.style.top='';placeBar(pos,false);
     // re-measure after layout flips between horizontal/vertical
     requestAnimationFrame(()=>placeBar(pos,false));buzz()};
   h.addEventListener('pointerup',end);h.addEventListener('pointercancel',end);
 });
 addEventListener('resize',()=>placeBar(bar.dataset.pos,false));
-(()=>{let pos='center';try{pos=localStorage.getItem(BPOS)||'center'}catch(e){}if(!['center','top','bottom'].includes(pos))pos='center';placeBar(pos,false);requestAnimationFrame(()=>placeBar(pos,false))})();
+(()=>{let pos='center';try{pos=localStorage.getItem(BPOS)||'center'}catch(e){}pos=({top:'start',bottom:'end'})[pos]||pos;if(!['center','start','end'].includes(pos))pos='center';placeBar(pos,false);requestAnimationFrame(()=>placeBar(pos,false))})();
 
 setInterval(()=>{if(!S.paused){S.elapsed++;if(S.elapsed%5===0)save()}$('timer').textContent=fmt(S.elapsed)},1000);
 
