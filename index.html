@@ -176,6 +176,21 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 .ctr .stepper button{width:34px;height:34px;font-size:20px}
 .ctr .val{min-width:26px;font-size:19px}
 .sheet{padding:10px 8px 60px}
+.sheet.full{position:fixed;z-index:60;background:rgba(15,17,21,.98);padding:calc(env(safe-area-inset-top) + 14px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 24px) calc(env(safe-area-inset-left) + 14px)}
+.sheet.full>*{max-width:560px;margin-left:auto;margin-right:auto}
+.sheet.full h3{font-size:14px;margin-top:18px;margin-bottom:8px}
+.sheet.full .head input{font-size:20px;padding:10px 12px}
+.sheet.full .close{width:44px;height:44px;flex:none}
+.sheet.full .ctr{padding:8px 10px;margin-bottom:8px;border-radius:12px}
+.sheet.full .ctr .lbl{font-size:16px}
+.sheet.full .ctr .stepper{gap:10px}
+.sheet.full .ctr .stepper button{width:44px;height:44px;font-size:24px}
+.sheet.full .ctr .val{font-size:24px;min-width:36px}
+.sheet.full .sw button{width:40px;height:40px}
+.sheet.full .toggles button{padding:14px 8px;font-size:15px}
+.sheet.full .log{font-size:15px}
+.sheet.full .cmd-search{font-size:16px;padding:12px}
+.sheet.full .sdone{display:block;width:100%;height:50px;margin-top:22px;border-radius:14px;background:var(--accent);color:#000;font-weight:800;font-size:17px;letter-spacing:.06em;text-transform:uppercase}
 .ctr.lethal{outline:2px solid var(--danger)}.ctr.lethal .val{color:var(--danger)}
 .toggles{display:flex;flex-wrap:wrap;gap:8px}
 .toggles button{flex:1 1 40%;padding:12px 8px;border-radius:10px;background:#20242c;font-weight:600}
@@ -388,7 +403,7 @@ function restore(str){
   d.pl.forEach((q,i)=>Object.assign(S.players[i],q));S.monarch=d.monarch;S.initiative=d.initiative;
   panels.forEach(x=>{clearTimeout(x.dt);x.delta=0;x.P.querySelector('.delta').classList.remove('show')});
   lastKey=null;update();
-  panels.forEach((x,i)=>{if(x.P.querySelector('.sheet'))openSheet(i)});
+  if(sheetFor!=null)openSheet(sheetFor);
   if(cmdrFor!=null)openCmdr(cmdrFor);
   syncHistoryButtons();buzz();
 }
@@ -507,11 +522,14 @@ function cmdrAdjust(i,k,d){
   if(a[j]+d<0)return false;record('cmdr'+i+k);buzz();a[j]+=d;p.life-=d;logEvent(p,'cmdr dmg from '+S.players[j].name,-d,p.life);update();return true}
 function logEvent(p,k,d,v){p.log.push({t:S.elapsed,d,life:v,k})}
 
-/* player sheet (rotates with panel) */
+/* player settings: a full-screen view, one player at a time (kept upright: it has text fields) */
+let sheetFor=null;
+function closeSheet(){document.querySelector('.sheet')?.remove();sheetFor=null}
 function openSheet(i){
-  const p=S.players[i],P=panels[i].P;
-  P.querySelector('.sheet')?.remove();
-  const sh=el('div','sheet');
+  const p=S.players[i];
+  const old=document.querySelector('.sheet'),y0=old?old.scrollTop:0;   // re-renders keep the scroll position
+  old?.remove();sheetFor=i;
+  const sh=el('div','sheet full');
   const m=MODES[S.mode],n=S.players.length;
   let h=`<div class="head"><input value="${esc(p.name)}" maxlength="16" id="nm"><button class="close" id="cl">✕</button></div>`;
   h+='<h3>Commander</h3>';
@@ -535,7 +553,8 @@ function openSheet(i){
   h+='<h3>Tokens</h3><div class="toggles"><button id="tm" class="'+(S.monarch===i?'on':'')+'">👑 Monarch</button><button id="ti" class="'+(S.initiative===i?'on':'')+'">🏰 Initiative</button><button id="tb" class="'+(p.blessing?'on':'')+'">🏙️ City’s Blessing</button></div>';
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
-  sh.innerHTML=h;P.append(sh);
+  h+='<button class="sdone" id="dn">Done</button>';
+  sh.innerHTML=h;document.body.append(sh);sh.scrollTop=y0;
   const nm=sh.querySelector('#nm'),defName='Player '+(i+1);
   nm.placeholder=defName;
   // first time naming: clear the default "Player #" so typing starts from an empty field
@@ -543,7 +562,8 @@ function openSheet(i){
   nm.oninput=()=>{p.name=nm.value.trim()?nm.value:defName;update()};
   const restore=()=>{if(!nm.value.trim()){p.name=defName;nm.value=defName}};
   nm.onblur=()=>{restore();update()};
-  sh.querySelector('#cl').onclick=()=>{restore();sh.remove();update()};
+  const closeIt=()=>{restore();closeSheet();update()};
+  sh.querySelector('#cl').onclick=closeIt;sh.querySelector('#dn').onclick=closeIt;
   sh.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{p.cmds.splice(+b.dataset.rm,1);update();openSheet(i)});
   let ct;const cres=sh.querySelector('#cres');
   sh.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const t=takenBy(b.dataset.c,i);if(t>=0){sh.querySelector('#cnote').textContent=S.players[t].name+' is already using that color.';return}p.color=b.dataset.c;update();openSheet(i)});
@@ -573,7 +593,7 @@ function openSheet(i){
     if(k==='life'){record('life'+i);p.life+=d;logEvent(p,'life',d,p.life)}
     else if(k[0]==='c'||k[0]==='d'){if(!cmdrAdjust(i,k,d))return}
     else{if(p[k]+d<0)return;record(k+i);p[k]+=d}
-    update();const y=sh.scrollTop;openSheet(i);P.querySelector('.sheet').scrollTop=y;
+    update();openSheet(i);
   });
   sh.querySelector('#tm').onclick=()=>{record('tok');S.monarch=S.monarch===i?null:i;update();openSheet(i)};
   sh.querySelector('#ti').onclick=()=>{record('tok');S.initiative=S.initiative===i?null:i;update();openSheet(i)};
@@ -710,7 +730,7 @@ function openSummary(){
   });
 }
 function startedNewGame(){
-  closeCmdr();clearHistory();closeModal();render();
+  closeSheet();closeCmdr();clearHistory();closeModal();render();
   $('bPause').textContent='⏸';$('timer').textContent=fmt(S.elapsed);
 }
 $('bMenu').onclick=()=>{
