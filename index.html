@@ -239,6 +239,9 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <div id="modal"><div class="card" id="card"></div></div>
 
 <script>
+// Bump on every release so the version shown in Settings tells you which build your phone is running.
+const APP_VERSION='1.0.0',APP_BUILD='2026-10-04';
+const versionLine=()=>`MTG Life Tracker v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#a16207','#7e22ce','#0e7490'];
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
 const colorOf=j=>S.players[j].color||COLORS[j];
@@ -554,6 +557,7 @@ function openSheet(i){
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
   h+='<button class="sdone" id="dn">Done</button>';
+  h+=`<p class="hint" style="text-align:center;margin-top:14px">${versionLine()}</p>`;
   sh.innerHTML=h;document.body.append(sh);sh.scrollTop=y0;
   const nm=sh.querySelector('#nm'),defName='Player '+(i+1);
   nm.placeholder=defName;
@@ -741,7 +745,8 @@ $('bMenu').onclick=()=>{
 <h3>Players</h3><div class="grid" id="ns">${[2,3,4,5,6].map(x=>`<button data-n="${x}" class="${x===n?'on':''}">${x}</button>`).join('')}</div>
 <button class="big" style="margin-top:18px" id="go">Start new game</button>
 <button class="big" style="margin-top:8px" id="same">New game, same players<br><small style="font-weight:500;color:var(--muted)">Keeps names, commanders and colors</small></button>
-<button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
+<button class="big" style="margin-top:8px" id="x">Cancel</button>
+<p class="hint" style="text-align:center;margin-top:16px">${versionLine()}</p>`,c=>{
     const pick=(sel,attr,fn)=>c.querySelectorAll(sel).forEach(b=>b.onclick=()=>{c.querySelectorAll(sel).forEach(y=>y.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr])});
     pick('[data-m]','m',v=>mode=v);pick('[data-n]','n',v=>n=+v);
     c.querySelector('#go').onclick=()=>{S=fresh(n,mode);startedNewGame();wake()};
