@@ -17,7 +17,15 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,"Segoe UI",sans-serif;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:inherit;border:0;background:none;touch-action:manipulation;cursor:pointer}
-#app{height:100%;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + var(--dockT,0px)) calc(env(safe-area-inset-right) + var(--dockR,0px)) calc(env(safe-area-inset-bottom) + var(--dockB,0px)) calc(env(safe-area-inset-left) + var(--dockL,0px))}
+#stage{position:fixed;inset:0}
+#app{height:100%;display:flex;flex-direction:column;padding:calc(var(--it,env(safe-area-inset-top)) + var(--dockT,0px)) calc(var(--ir,env(safe-area-inset-right)) + var(--dockR,0px)) calc(var(--ib,env(safe-area-inset-bottom)) + var(--dockB,0px)) calc(var(--il,env(safe-area-inset-left)) + var(--dockL,0px))}
+/* When the phone is turned, the board stays fixed to the phone (panels in the same physical spots) while each
+   panel's contents are turned back so text and buttons read upright. */
+.pc{position:absolute;inset:0}
+body.rot .pc{inset:auto;left:50%;top:50%;z-index:5}
+body.rot .row.top .panel{transform:none}
+body.rot #bar>*{transform:rotate(var(--cr,0deg))}
+body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!important}
 .row{flex:1;display:flex;min-height:0;gap:3px;padding:3px}
 .row.top .panel{transform:rotate(180deg)}
 .panel{flex:1;position:relative;border-radius:14px;overflow:hidden;min-width:0;transition:filter .3s}
@@ -134,11 +142,11 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 #bar.drag{opacity:.85}
 #bar[data-pos=start],#bar[data-pos=end]{transform:none;border-radius:0;border-width:0;justify-content:center}
 #bar[data-pos=start][data-o=h],#bar[data-pos=end][data-o=h]{left:0;right:0;height:56px;gap:14px;padding:0 8px}
-#bar[data-pos=start][data-o=h]{top:env(safe-area-inset-top);border-bottom:1px solid #333}
-#bar[data-pos=end][data-o=h]{top:auto;bottom:env(safe-area-inset-bottom);border-top:1px solid #333}
+#bar[data-pos=start][data-o=h]{top:var(--it,env(safe-area-inset-top));border-bottom:1px solid #333}
+#bar[data-pos=end][data-o=h]{top:auto;bottom:var(--ib,env(safe-area-inset-bottom));border-top:1px solid #333}
 #bar[data-pos=start][data-o=v],#bar[data-pos=end][data-o=v]{top:0;bottom:0;width:60px;flex-direction:column;gap:10px;padding:8px 0}
-#bar[data-pos=start][data-o=v]{left:env(safe-area-inset-left);right:auto;border-right:1px solid #333}
-#bar[data-pos=end][data-o=v]{left:auto;right:env(safe-area-inset-right);border-left:1px solid #333}
+#bar[data-pos=start][data-o=v]{left:var(--il,env(safe-area-inset-left));right:auto;border-right:1px solid #333}
+#bar[data-pos=end][data-o=v]{left:auto;right:var(--ir,env(safe-area-inset-right));border-left:1px solid #333}
 #bar[data-pos=start][data-o=h] #timer,#bar[data-pos=end][data-o=h] #timer{font-size:18px;min-width:90px}
 #bar[data-o=v][data-pos=start] #timer,#bar[data-o=v][data-pos=end] #timer{min-width:0;padding:4px 0;font-size:13px}
 #bar[data-o=v][data-pos=start] #grip,#bar[data-o=v][data-pos=end] #grip{width:42px;height:22px}
@@ -224,7 +232,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 </style>
 </head>
 <body>
-<div id="app"><div class="row top" id="rowTop"></div><div class="row" id="rowBot"></div></div>
+<div id="stage"><div id="app"><div class="row top" id="rowTop"></div><div class="row" id="rowBot"></div></div>
 <div id="bar" data-pos="center">
   <div id="grip" title="Drag to move"><span>⋮⋮</span></div>
   <button id="bMenu" title="New game / settings">⚙️</button>
@@ -235,12 +243,13 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
   <div id="timer">0:00</div>
   <button id="bPause" title="Pause timer">⏸</button>
 </div>
+</div>
 <div id="pickguard"></div>
 <div id="modal"><div class="card" id="card"></div></div>
 
 <script>
 // Bump on every release so the version shown in Settings tells you which build your phone is running.
-const APP_VERSION='1.0.0',APP_BUILD='2026-10-04';
+const APP_VERSION='1.1.0',APP_BUILD='2026-10-04';
 const versionLine=()=>`MTG Life Tracker v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#a16207','#7e22ce','#0e7490'];
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -265,7 +274,11 @@ const fmt=s=>{const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return(h
 const buzz=()=>{try{navigator.vibrate&&navigator.vibrate(8)}catch(e){}};
 
 const panels=[];
+const pcOf=P=>P.querySelector(':scope>.pc')||P;
+let ROT=0;   // degrees the board is turned so it stays fixed to the phone (0 when upright)
+const ro=typeof ResizeObserver==='function'?new ResizeObserver(es=>es.forEach(e=>layoutPC(e.target))):null;
 function render(){
+  ro&&ro.disconnect();
   $('rowTop').innerHTML='';$('rowBot').innerHTML='';panels.length=0;
   const n=S.players.length,topN=Math.floor(n/2);
   S.players.forEach((p,i)=>{
@@ -275,7 +288,7 @@ function render(){
     {
       const inTop=i<topN,m=inTop?topN:n-topN,k=inTop?i:i-topN;
       const screenSide=k<(m-1)/2?'right':k>(m-1)/2?'left':'right';   // the side facing the middle of the table
-      P.dataset.crown=inTop?(screenSide==='right'?'left':'right'):screenSide;
+      P.dataset.crown=inTop?(screenSide==='right'?'left':'right'):screenSide;P.dataset.crownN=P.dataset.crown;
       const cr=el('div','crownbtn','👑');cr.title='Monarch - drag to another player';cr.hidden=true;
       cr.addEventListener('pointerdown',e=>{if(S.monarch===i)startTokenDrag(e,i,cr,'monarch','👑')});
       P.append(cr);
@@ -302,10 +315,14 @@ function render(){
     P.append(mk(-1),mk(1));
     const g=el('button','gear','☰');g.onclick=()=>openSheet(i);P.append(g);
     const cb=el('button','cbtn','⚔️');cb.title='Commander damage';cb.onclick=()=>openCmdr(i);P.append(cb);
+    const pc=el('div','pc');while(P.firstChild)pc.append(P.firstChild);P.append(pc);
+    P.dataset.top=i<topN?'1':'0';
     (i<topN?$('rowTop'):$('rowBot')).append(P);panels.push({P,delta:0,dt:null});
+    ro&&ro.observe(P);
   });
   if(!topN)$('rowTop').style.display='none';else $('rowTop').style.display='';
   update();
+  panels.forEach(x=>layoutPC(x.P));
 }
 /* why a player is out: commander damage > poison > life; a recorded cause is kept while it still applies */
 function defeatCauses(p,i){
@@ -335,7 +352,7 @@ function update(){
       ar=el('div','arts'+(p.cmds.length==1?' one':''));ar.dataset.k=key;
       if(p.cmds.length==1)ar.style.backgroundImage=`url("${p.cmds[0].art}")`;
       else p.cmds.forEach(c=>{const im=el('img');im.alt='';im.src=c.art;ar.append(im)});
-      P.prepend(ar)}
+      pcOf(P).prepend(ar)}
     P.style.background=colorOf(i);P.style.color=isLight(colorOf(i))?'#111':'#fff';
     P.querySelector('.life span').textContent=p.life;
     P.classList.toggle('dead',dead(p));
@@ -352,7 +369,7 @@ function update(){
     const champ=!isDead&&aliveCount===1&&S.players.length>1;
     P.classList.toggle('champ',champ);
     let cs2=P.querySelector('.sparkles.champ-sp');
-    if(champ&&!cs2){const sp=makeSparkles('Winner! 📊','champ-sp',true);sp.querySelector('.first').onclick=openSummary;P.append(sp)}
+    if(champ&&!cs2){const sp=makeSparkles('Winner! 📊','champ-sp',true);sp.querySelector('.first').onclick=openSummary;pcOf(P).append(sp)}
     else if(!champ&&cs2)cs2.remove();
     const cd=P.querySelector('.cdmg');cd.innerHTML='';
     if(MODES[S.mode].cmdr)S.players.forEach((o,j)=>{
@@ -430,7 +447,7 @@ function openExact(i){
   ex.querySelector('.cancel').onclick=()=>done(false);
   ex.querySelector('.set').onclick=()=>done(true);
   inp.onkeydown=e=>{if(e.key==='Enter')done(true);else if(e.key==='Escape')done(false)};
-  P.append(ex);
+  pcOf(P).append(ex);
   // iOS only raises the keyboard when focus() runs inside a touch gesture; the long press has already ended its
   // gesture by now, so focus again when the finger lifts (see tryFocusExact), and fall back to a hint + tapping the box.
   const touch=matchMedia('(pointer: coarse)').matches;
@@ -457,7 +474,7 @@ function startNameEdit(i){
   };
   inp.onkeydown=e=>{if(e.key==='Enter')finish(true);else if(e.key==='Escape')finish(false)};
   inp.onblur=()=>finish(true);
-  P.append(inp);inp.focus();
+  pcOf(P).append(inp);inp.focus();
 }
 /* quick commander-damage overlay: full screen, one player at a time (turned to face top-row players) */
 let cmdrFor=null;
@@ -651,7 +668,7 @@ function pickRandomPlayer(){
   }
   pickTimers.push(setTimeout(()=>{
     const P=panels[w].P;P.classList.remove('hl');P.classList.add('win');
-    P.append(makeSparkles('goes first','pick'));buzz();
+    pcOf(P).append(makeSparkles('goes first','pick'));buzz();
   },4000+120));
   pickTimers.push(setTimeout(endPick,4000+120+3000));
 }
@@ -764,7 +781,44 @@ $('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'�
 /* draggable control bar: snaps to center or any edge */
 const bar=$('bar'),BPOS='mtg-bar-pos';
 const probe=el('div');probe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';document.body.append(probe);
-const orient=()=>innerWidth<=innerHeight?'h':'v';
+function computeRot(){
+  const q=new URLSearchParams(location.search).get('angle');   // ?angle=90 / -90 forces a turn (for testing)
+  let a;
+  if(q!==null)a=+q;
+  else{
+    if(innerWidth<=innerHeight)return 0;   // upright
+    a=typeof window.orientation==='number'?window.orientation:((screen.orientation&&screen.orientation.angle)||0);
+  }
+  a=((a%360)+360)%360;
+  return a===90?-90:a===270?90:0;   // turn the board opposite to the phone so it stays fixed to the phone
+}
+function applyRotation(){
+  ROT=computeRot();const stage=$('stage');
+  document.body.classList.toggle('rot',ROT!==0);
+  if(ROT===0)stage.style.cssText='';
+  else{
+    const E=k=>`env(safe-area-inset-${k})`,m=ROT===90?{t:'right',r:'bottom',b:'left',l:'top'}:{t:'left',r:'top',b:'right',l:'bottom'};
+    stage.style.cssText=`inset:auto;left:50%;top:50%;width:${innerHeight}px;height:${innerWidth}px;transform:translate(-50%,-50%) rotate(${ROT}deg);--it:${E(m.t)};--ir:${E(m.r)};--ib:${E(m.b)};--il:${E(m.l)};--cr:${-ROT}deg`;
+  }
+  panels.forEach(x=>layoutPC(x.P));
+}
+function layoutPC(P){
+  const pc=P.querySelector(':scope>.pc');if(!pc)return;
+  if(ROT===0){pc.style.cssText='';if(P.dataset.crownN)P.dataset.crown=P.dataset.crownN;return}
+  const w=P.clientWidth,h=P.clientHeight,swap=Math.abs(ROT)===90,top=P.dataset.top==='1';
+  const cw=swap?h:w,ch=swap?w:h;
+  pc.style.width=cw+'px';pc.style.height=ch+'px';pc.style.transform=`translate(-50%,-50%) rotate(${-ROT+(top?180:0)}deg)`;
+  // crown / tokens: use whichever top corner of the (turned) content is nearer the middle of the board
+  const pr=P.getBoundingClientRect(),sr=$('stage').getBoundingClientRect(),cx=pr.left+pr.width/2,cy=pr.top+pr.height/2,sx=sr.left+sr.width/2,sy=sr.top+sr.height/2;
+  const k=top?-1:1,a=cw/2,b=ch/2,dl=Math.hypot(cx+k*-a-sx,cy+k*-b-sy),dr=Math.hypot(cx+k*a-sx,cy+k*-b-sy);
+  P.dataset.crown=dl<dr-1?'left':'right';
+}
+function toBoard(cx,cy){   // viewport point -> board (stage) coordinates
+  const st=$('stage'),r=st.getBoundingClientRect(),vx=cx-(r.left+r.width/2),vy=cy-(r.top+r.height/2),t=ROT*Math.PI/180,c=Math.cos(t),sn=Math.sin(t);
+  return [st.offsetWidth/2+vx*c+vy*sn,st.offsetHeight/2-vx*sn+vy*c];
+}
+applyRotation();
+const orient=()=>{const st=$('stage');return st.offsetWidth<=st.offsetHeight?'h':'v'};
 const barO=()=>S.barO||(S.barO=orient());   // fixed for the game: set at new game / first load, not on rotation  // h: bar docks along the top/bottom (short edges of a portrait screen)
 function placeBar(pos,animate){
   bar.dataset.pos=pos;bar.dataset.o=barO();bar.classList.toggle('snap',!!animate&&pos==='center');
@@ -775,22 +829,24 @@ function placeBar(pos,animate){
   try{localStorage.setItem(BPOS,pos)}catch(e){}
 }
 function nearestPos(x,y){
-  const v=barO()==='v',n=v?x:y,L=v?innerWidth:innerHeight,t={center:L/2,start:0,end:L};
+  const st=$('stage'),v=barO()==='v',n=v?x:y,L=v?st.offsetWidth:st.offsetHeight,t={center:L/2,start:0,end:L};
   return Object.keys(t).reduce((b,k)=>Math.abs(n-t[k])<Math.abs(n-t[b])?k:b,'center');
 }
 [$('grip'),$('timer')].forEach(h=>{
   let down=false,dx=0,dy=0;
   h.addEventListener('pointerdown',e=>{down=true;h.setPointerCapture(e.pointerId);
-    const r=bar.getBoundingClientRect();const f=bar.dataset.pos==='center';dx=f?e.clientX-(r.left+r.width/2):0;dy=f?e.clientY-(r.top+r.height/2):0;
+    const r=bar.getBoundingClientRect(),f=bar.dataset.pos==='center',[px,py]=toBoard(e.clientX,e.clientY),[bx,by]=toBoard(r.left+r.width/2,r.top+r.height/2);dx=f?px-bx:0;dy=f?py-by:0;
     bar.classList.remove('snap');bar.classList.add('drag')});
-  h.addEventListener('pointermove',e=>{if(!down)return;bar.style.left=(e.clientX-dx)+'px';bar.style.top=(e.clientY-dy)+'px'});
+  h.addEventListener('pointermove',e=>{if(!down)return;const [px,py]=toBoard(e.clientX,e.clientY);bar.style.left=(px-dx)+'px';bar.style.top=(py-dy)+'px'});
   const end=e=>{if(!down)return;down=false;bar.classList.remove('drag');
-    const pos=nearestPos(e.clientX,e.clientY);bar.style.left='';bar.style.top='';placeBar(pos,false);
+    const [px,py]=toBoard(e.clientX,e.clientY),pos=nearestPos(px,py);bar.style.left='';bar.style.top='';placeBar(pos,false);
     // re-measure after layout flips between horizontal/vertical
     requestAnimationFrame(()=>placeBar(pos,false));buzz()};
   h.addEventListener('pointerup',end);h.addEventListener('pointercancel',end);
 });
-addEventListener('resize',()=>placeBar(bar.dataset.pos,false));
+const refit=()=>{applyRotation();placeBar(bar.dataset.pos,false)};
+addEventListener('resize',refit);
+addEventListener('orientationchange',()=>{refit();setTimeout(refit,250)});
 (()=>{let pos='center';try{pos=localStorage.getItem(BPOS)||'center'}catch(e){}pos=({top:'start',bottom:'end'})[pos]||pos;if(!['center','start','end'].includes(pos))pos='center';placeBar(pos,false);requestAnimationFrame(()=>placeBar(pos,false))})();
 
 setInterval(()=>{if(!S.paused&&!gameIsOver){S.elapsed++;if(S.elapsed%5===0)save()}$('timer').textContent=fmt(S.elapsed)},1000);
