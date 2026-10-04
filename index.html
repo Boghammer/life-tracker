@@ -249,7 +249,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 
 <script>
 // Bump on every release so the version shown in Settings tells you which build your phone is running.
-const APP_VERSION='1.1.0',APP_BUILD='2026-10-04';
+const APP_VERSION='1.1.1',APP_BUILD='2026-10-04';
 const versionLine=()=>`MTG Life Tracker v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#a16207','#7e22ce','#0e7490'];
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -482,7 +482,7 @@ function closeCmdr(){document.querySelector('.cmdr-ov')?.remove();cmdrFor=null}
 function openCmdr(i){
   closeCmdr();cmdrFor=i;
   const p=S.players[i],ov=el('div','cmdr-ov full');
-  if(i<Math.floor(S.players.length/2))ov.style.transform='rotate(180deg)';   // top row sits across the table
+  if(faceAngle(i)===180)ov.style.transform='rotate(180deg)';   // players facing the top edge
   ov.innerHTML='<div class="ttl">Commander damage</div><div class="sub"></div><div class="rows"></div><button class="done">Done</button>';
   ov.querySelector('.sub').textContent='Damage taken by '+p.name;
   const rows=ov.querySelector('.rows');
@@ -804,15 +804,24 @@ function applyRotation(){
 }
 function layoutPC(P){
   const pc=P.querySelector(':scope>.pc');if(!pc)return;
-  if(ROT===0){pc.style.cssText='';if(P.dataset.crownN)P.dataset.crown=P.dataset.crownN;return}
-  const w=P.clientWidth,h=P.clientHeight,swap=Math.abs(ROT)===90,top=P.dataset.top==='1';
-  const cw=swap?h:w,ch=swap?w:h;
-  pc.style.width=cw+'px';pc.style.height=ch+'px';pc.style.transform=`translate(-50%,-50%) rotate(${-ROT+(top?180:0)}deg)`;
-  // crown / tokens: use whichever top corner of the (turned) content is nearer the middle of the board
-  const pr=P.getBoundingClientRect(),sr=$('stage').getBoundingClientRect(),cx=pr.left+pr.width/2,cy=pr.top+pr.height/2,sx=sr.left+sr.width/2,sy=sr.top+sr.height/2;
-  const k=top?-1:1,a=cw/2,b=ch/2,dl=Math.hypot(cx+k*-a-sx,cy+k*-b-sy),dr=Math.hypot(cx+k*a-sx,cy+k*-b-sy);
-  P.dataset.crown=dl<dr-1?'left':'right';
+  if(ROT===0){pc.style.cssText='';delete P.dataset.theta;if(P.dataset.crownN)P.dataset.crown=P.dataset.crownN;return}
+  // Turned phone: face each panel's text toward the nearest outside edge of the phone (as the viewer sees it).
+  const W=innerWidth,H=innerHeight,pr=P.getBoundingClientRect(),cx=pr.left+pr.width/2,cy=pr.top+pr.height/2;
+  const bias=3,shortLR=W>H;   // on a near-tie prefer the phone's short edges
+  const d={top:cy-(shortLR?0:bias),bottom:H-cy-(shortLR?0:bias),left:cx-(shortLR?bias:0),right:W-cx-(shortLR?bias:0)};
+  const edge=Object.keys(d).reduce((a,k)=>d[k]<d[a]?k:a,'bottom');
+  const theta={bottom:0,top:180,left:90,right:-90}[edge];   // net turn of the content as the viewer sees it
+  P.dataset.theta=theta;
+  const rho=theta-ROT,quarter=Math.abs(Math.round(rho/90))%2===1;
+  const w0=P.clientWidth,h0=P.clientHeight,cw=quarter?h0:w0,ch=quarter?w0:h0;
+  pc.style.width=cw+'px';pc.style.height=ch+'px';pc.style.transform=`translate(-50%,-50%) rotate(${rho}deg)`;
+  // crown / tokens: whichever top corner of the (turned) content is nearer the middle of the board
+  const sr=$('stage').getBoundingClientRect(),sx=sr.left+sr.width/2,sy=sr.top+sr.height/2,t=theta*Math.PI/180,c=Math.cos(t),sn=Math.sin(t);
+  const corner=lx=>[cx+lx*c-(-ch/2)*sn,cy+lx*sn+(-ch/2)*c];
+  const L=corner(-cw/2),R=corner(cw/2);
+  P.dataset.crown=Math.hypot(L[0]-sx,L[1]-sy)<Math.hypot(R[0]-sx,R[1]-sy)-1?'left':'right';
 }
+const faceAngle=i=>{const t=panels[i]&&panels[i].P.dataset.theta;return t!==undefined?+t:(i<Math.floor(S.players.length/2)?180:0)};
 function toBoard(cx,cy){   // viewport point -> board (stage) coordinates
   const st=$('stage'),r=st.getBoundingClientRect(),vx=cx-(r.left+r.width/2),vy=cy-(r.top+r.height/2),t=ROT*Math.PI/180,c=Math.cos(t),sn=Math.sin(t);
   return [st.offsetWidth/2+vx*c+vy*sn,st.offsetHeight/2-vx*sn+vy*c];
