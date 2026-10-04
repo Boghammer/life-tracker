@@ -731,6 +731,7 @@ function openSummary(){
 }
 function startedNewGame(){
   closeSheet();closeCmdr();clearHistory();closeModal();render();
+  S.barO=orient();placeBar(bar.dataset.pos,false);   // a new game takes the bar direction from the current orientation
   $('bPause').textContent='â¸';$('timer').textContent=fmt(S.elapsed);
 }
 $('bMenu').onclick=()=>{
@@ -759,9 +760,10 @@ $('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'â–
 /* draggable control bar: snaps to center or any edge */
 const bar=$('bar'),BPOS='mtg-bar-pos';
 const probe=el('div');probe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';document.body.append(probe);
-const orient=()=>innerWidth<=innerHeight?'h':'v';  // h: bar docks along the top/bottom (short edges of a portrait screen)
+const orient=()=>innerWidth<=innerHeight?'h':'v';
+const barO=()=>S.barO||(S.barO=orient());   // fixed for the game: set at new game / first load, not on rotation  // h: bar docks along the top/bottom (short edges of a portrait screen)
 function placeBar(pos,animate){
-  bar.dataset.pos=pos;bar.dataset.o=orient();bar.classList.toggle('snap',!!animate&&pos==='center');
+  bar.dataset.pos=pos;bar.dataset.o=barO();bar.classList.toggle('snap',!!animate&&pos==='center');
   if(pos==='center'){bar.style.left='50%';bar.style.top='50%'}else{bar.style.left='';bar.style.top=''}
   const v=bar.dataset.o==='v',sz=pos==='center'?0:(v?bar.offsetWidth:bar.offsetHeight),st=pos==='start',en=pos==='end',a=$('app').style;
   a.setProperty('--dockT',st&&!v?sz+'px':'0px');a.setProperty('--dockB',en&&!v?sz+'px':'0px');
@@ -769,7 +771,7 @@ function placeBar(pos,animate){
   try{localStorage.setItem(BPOS,pos)}catch(e){}
 }
 function nearestPos(x,y){
-  const v=orient()==='v',n=v?x:y,L=v?innerWidth:innerHeight,t={center:L/2,start:0,end:L};
+  const v=barO()==='v',n=v?x:y,L=v?innerWidth:innerHeight,t={center:L/2,start:0,end:L};
   return Object.keys(t).reduce((b,k)=>Math.abs(n-t[k])<Math.abs(n-t[b])?k:b,'center');
 }
 [$('grip'),$('timer')].forEach(h=>{
