@@ -557,7 +557,6 @@ function openSheet(i){
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
   h+='<button class="sdone" id="dn">Done</button>';
-  h+=`<p class="hint" style="text-align:center;margin-top:14px">${versionLine()}</p>`;
   sh.innerHTML=h;document.body.append(sh);sh.scrollTop=y0;
   const nm=sh.querySelector('#nm'),defName='Player '+(i+1);
   nm.placeholder=defName;
