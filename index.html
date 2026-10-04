@@ -249,9 +249,9 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 
 <script>
 // Bump on every release so the version shown in Settings tells you which build your phone is running.
-const APP_VERSION='1.1.3',APP_BUILD='2026-10-04';
+const APP_VERSION='1.1.4',APP_BUILD='2026-10-04';
 const versionLine=()=>`MTG Life Tracker v${APP_VERSION} · build ${APP_BUILD}`;
-const COLORS=['#b91c1c','#1d4ed8','#15803d','#a16207','#7e22ce','#0e7490'];
+const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
 const colorOf=j=>S.players[j].color||COLORS[j];
 const takenBy=(c,i)=>S.players.findIndex((o,j)=>j!==i&&colorOf(j).toLowerCase()===c.toLowerCase());
@@ -781,7 +781,7 @@ $('bUndo').onclick=undo;$('bRedo').onclick=redo;
 $('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'▶️':'⏸';save()};
 
 /* draggable control bar: snaps to center or any edge */
-const bar=$('bar'),BPOS='mtg-bar-pos';
+const bar=$('bar'),BPOS='mtg-bar-pos2';   // v2: saved only when you move the bar yourself; the default is the bottom edge
 const probe=el('div');probe.style.cssText='position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';document.body.append(probe);
 function computeRot(){
   const q=new URLSearchParams(location.search).get('angle');   // ?angle=90 / -90 forces a turn (for testing)
@@ -838,7 +838,6 @@ function placeBar(pos,animate){
   const v=bar.dataset.o==='v',sz=pos==='center'?0:(v?bar.offsetWidth:bar.offsetHeight),st=pos==='start',en=pos==='end',a=$('app').style;
   a.setProperty('--dockT',st&&!v?sz+'px':'0px');a.setProperty('--dockB',en&&!v?sz+'px':'0px');
   a.setProperty('--dockL',st&&v?sz+'px':'0px');a.setProperty('--dockR',en&&v?sz+'px':'0px');
-  try{localStorage.setItem(BPOS,pos)}catch(e){}
 }
 function nearestPos(x,y){
   const st=$('stage'),v=barO()==='v',n=v?x:y,L=v?st.offsetWidth:st.offsetHeight,t={center:L/2,start:0,end:L};
@@ -851,7 +850,7 @@ function nearestPos(x,y){
     bar.classList.remove('snap');bar.classList.add('drag')});
   h.addEventListener('pointermove',e=>{if(!down)return;const [px,py]=toBoard(e.clientX,e.clientY);bar.style.left=(px-dx)+'px';bar.style.top=(py-dy)+'px'});
   const end=e=>{if(!down)return;down=false;bar.classList.remove('drag');
-    const [px,py]=toBoard(e.clientX,e.clientY),pos=nearestPos(px,py);bar.style.left='';bar.style.top='';placeBar(pos,false);
+    const [px,py]=toBoard(e.clientX,e.clientY),pos=nearestPos(px,py);try{localStorage.setItem(BPOS,pos)}catch(err){}bar.style.left='';bar.style.top='';placeBar(pos,false);
     // re-measure after layout flips between horizontal/vertical
     requestAnimationFrame(()=>placeBar(pos,false));buzz()};
   h.addEventListener('pointerup',end);h.addEventListener('pointercancel',end);
@@ -859,7 +858,7 @@ function nearestPos(x,y){
 const refit=()=>{applyRotation();placeBar(bar.dataset.pos,false)};
 addEventListener('resize',refit);
 addEventListener('orientationchange',()=>{refit();setTimeout(refit,250)});
-(()=>{let pos='center';try{pos=localStorage.getItem(BPOS)||'center'}catch(e){}pos=({top:'start',bottom:'end'})[pos]||pos;if(!['center','start','end'].includes(pos))pos='center';placeBar(pos,false);requestAnimationFrame(()=>placeBar(pos,false))})();
+(()=>{let pos='end';try{pos=localStorage.getItem(BPOS)||'end'}catch(e){}if(!['center','start','end'].includes(pos))pos='end';placeBar(pos,false);requestAnimationFrame(()=>placeBar(pos,false))})();
 
 setInterval(()=>{if(!S.paused&&!gameIsOver){S.elapsed++;if(S.elapsed%5===0)save()}$('timer').textContent=fmt(S.elapsed)},1000);
 
