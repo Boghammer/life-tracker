@@ -1,6 +1,6 @@
 {
-  "name": "MTG Life Tracker",
-  "short_name": "Life",
+  "name": "Bog Life",
+  "short_name": "Bog Life",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",

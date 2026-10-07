@@ -1,4 +1,4 @@
-# MTG Life Tracker (PWA)
+# Bog Life (PWA)
 
 Static, no-build PWA. Run locally: `python -m http.server 8000` and open http://localhost:8000.
 
