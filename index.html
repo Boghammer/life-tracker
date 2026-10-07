@@ -100,6 +100,10 @@ body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!imp
 .delta.show{opacity:.95}
 .cdmg{position:absolute;bottom:4px;left:6px;right:50px;display:flex;gap:6px;flex-wrap:wrap;z-index:3}
 .chip,.badge,.gear{color:#fff}
+/* light panel with no art behind it: controls that sit on it use black text on a lighter tint */
+.panel.light .chip,.panel.light .badge,.panel.light .gear,.panel.light .cbtn,.panel.light button.badge.tap{color:#111;background:rgba(0,0,0,.14)}
+.panel.light .chip:active{background:rgba(0,0,0,.28)}
+.panel.light .chip.lethal{background:var(--danger);color:#111}
 .sw{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .sw button{width:36px;height:36px;border-radius:50%;border:3px solid transparent}
 .sw button.on{border-color:#fff}
@@ -255,7 +259,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 
 <script>
 // Bump on every release so the version shown in Settings tells you which build your phone is running.
-const APP_VERSION='1.1.9',APP_BUILD='2026-10-04';
+const APP_VERSION='1.2.0',APP_BUILD='2026-10-04';
 const versionLine=()=>`MTG Life Tracker v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -366,6 +370,7 @@ function update(){
     P.style.background=colorOf(i);P.style.color=p.textColor||((p.cmds.length||!isLight(colorOf(i)))?'#fff':'#111');
     P.querySelector('.life span').textContent=p.life;
     P.classList.toggle('dead',dead(p));
+    P.classList.toggle('light',isLight(colorOf(i))&&!p.cmds.length);
     const isDead=dead(p),aliveCount=S.players.filter(q=>!dead(q)).length;
     if(isDead){
       const cs=defeatCauses(p,i),cur=cs.find(c=>p.defeat&&c.key===p.defeat.key)||cs[0];
