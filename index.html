@@ -249,7 +249,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 
 <script>
 // Bump on every release so the version shown in Settings tells you which build your phone is running.
-const APP_VERSION='1.1.4',APP_BUILD='2026-10-04';
+const APP_VERSION='1.1.5',APP_BUILD='2026-10-04';
 const versionLine=()=>`MTG Life Tracker v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -808,18 +808,21 @@ function layoutPC(P){
   const pc=P.querySelector(':scope>.pc');if(!pc)return;
   if(ROT===0){pc.style.cssText='';delete P.dataset.theta;if(P.dataset.crownN)P.dataset.crown=P.dataset.crownN;return}
   // Turned phone: face each panel's text toward the nearest outside edge of the phone (as the viewer sees it).
-  const W=innerWidth,H=innerHeight,pr=P.getBoundingClientRect(),cx=pr.left+pr.width/2,cy=pr.top+pr.height/2;
-  // near-ties prefer the top/bottom edges (players across from each other); top vs bottom is settled by seat (top row of the board = top)
-  const bias=3,d={top:cy-bias,bottom:H-cy-bias,left:cx,right:W-cx};
+  const pr=P.getBoundingClientRect(),cx=pr.left+pr.width/2,cy=pr.top+pr.height/2;
+  // Distances are measured to the edges of the area the panels actually occupy (not the raw screen), so uneven safe-area
+  // margins (home bar, notch) and the docked bar can't break a tie. Near-ties prefer top/bottom (players across from each
+  // other); top vs bottom is then settled by seat (top row of the board = top).
+  const rs=panels.map(x=>x.P.getBoundingClientRect()),minL=Math.min(...rs.map(r=>r.left)),maxR=Math.max(...rs.map(r=>r.right)),minT=Math.min(...rs.map(r=>r.top)),maxB=Math.max(...rs.map(r=>r.bottom));
+  const bias=3,dT=cy-minT,dB=maxB-cy,d={top:dT-bias,bottom:dB-bias,left:cx-minL,right:maxR-cx};
   let edge=Object.keys(d).reduce((a,k)=>d[k]<d[a]?k:a,'bottom');
-  if((edge==='top'||edge==='bottom')&&Math.abs(cy-(H-cy))<2)edge=P.dataset.top==='1'?'top':'bottom';
+  if((edge==='top'||edge==='bottom')&&Math.abs(dT-dB)<4)edge=P.dataset.top==='1'?'top':'bottom';
   const theta={bottom:0,top:180,left:90,right:-90}[edge];   // net turn of the content as the viewer sees it
   P.dataset.theta=theta;
   const rho=theta-ROT,quarter=Math.abs(Math.round(rho/90))%2===1;
   const w0=P.clientWidth,h0=P.clientHeight,cw=quarter?h0:w0,ch=quarter?w0:h0;
   pc.style.width=cw+'px';pc.style.height=ch+'px';pc.style.transform=`translate(-50%,-50%) rotate(${rho}deg)`;
   // crown / tokens: whichever top corner of the (turned) content is nearer the middle of the board
-  const sr=$('stage').getBoundingClientRect(),sx=sr.left+sr.width/2,sy=sr.top+sr.height/2,t=theta*Math.PI/180,c=Math.cos(t),sn=Math.sin(t);
+  const sx=(minL+maxR)/2,sy=(minT+maxB)/2,t=theta*Math.PI/180,c=Math.cos(t),sn=Math.sin(t);
   const corner=lx=>[cx+lx*c-(-ch/2)*sn,cy+lx*sn+(-ch/2)*c];
   const L=corner(-cw/2),R=corner(cw/2);
   P.dataset.crown=Math.hypot(L[0]-sx,L[1]-sy)<Math.hypot(R[0]-sx,R[1]-sy)-1?'left':'right';
