@@ -252,14 +252,15 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 
 <script>
 // Bump on every release so the version shown in Settings tells you which build your phone is running.
-const APP_VERSION='1.1.6',APP_BUILD='2026-10-04';
+const APP_VERSION='1.1.7',APP_BUILD='2026-10-04';
 const versionLine=()=>`MTG Life Tracker v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
 const colorOf=j=>S.players[j].color||COLORS[j];
 const takenBy=(c,i)=>S.players.findIndex((o,j)=>j!==i&&colorOf(j).toLowerCase()===c.toLowerCase());
 const TEXT_SWATCHES=['#ffffff','#111111','#fde68a','#fca5a5','#86efac','#93c5fd'];   // text colors may be shared by any panels
-const isLight=c=>{const n=parseInt(c.slice(1),16);return (0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))/255>0.65};
+const lum=c=>{const n=parseInt(c.slice(1),16);return (0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))/255};
+const isLight=c=>lum(c)>0.65;
 const MODES={standard:{label:'Standard',life:20,cmdr:false},commander:{label:'Commander',life:40,cmdr:true},brawl:{label:'Brawl',life:25,cmdr:true}};
 const KEY='mtg-life-v1';
 let S=load();
@@ -611,7 +612,9 @@ function openSheet(i){
           const img=(c.image_uris||(c.card_faces&&c.card_faces[0].image_uris)||{}).art_crop;if(!img)return;
           const b=el('button','','<img alt=""><span></span>');
           b.querySelector('img').src=img;b.querySelector('span').textContent=c.name;
-          b.onclick=()=>{p.cmds.push({name:c.name,art:img,artist:c.artist||(c.card_faces&&c.card_faces[0].artist)||''});update();openSheet(i)};
+          b.onclick=()=>{p.cmds.push({name:c.name,art:img,artist:c.artist||(c.card_faces&&c.card_faces[0].artist)||''});
+            if(p.textColor&&lum(p.textColor)<0.35)p.textColor=null;   // art is dark: a dark text color chosen earlier goes back to Auto (white)
+            update();openSheet(i)};
           cres.append(b);
         });
       }catch(err){cres.innerHTML='<div class="hint">Could not reach Scryfall (offline?).</div>'}
