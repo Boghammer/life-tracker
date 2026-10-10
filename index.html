@@ -85,6 +85,8 @@ body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!imp
 .sparkles.lightbg span{color:#b45309;text-shadow:0 0 6px #fde68a,0 0 12px #fbbf24}
 .sparkles .first.xl{pointer-events:auto;cursor:pointer;font-size:min(9vw,7vh);top:auto;bottom:12%;color:#fde68a;text-shadow:0 0 10px #000,0 0 18px var(--accent)}
 .panel .name{position:absolute;top:8px;left:0;right:0;text-align:center;font-size:14px;font-weight:600;opacity:.85;z-index:2;pointer-events:none}
+.panel .name .star{color:#fbbf24;font-size:18px;line-height:1;padding:6px 5px;pointer-events:auto;cursor:pointer;touch-action:manipulation;text-shadow:0 0 2px rgba(0,0,0,.7)}
+.panel .name .star:active{transform:scale(1.25)}
 .panel .name.editable{pointer-events:auto;cursor:text;top:2px;padding:6px 0 14px}
 .panel .name.editable::after{content:" ✎";opacity:.8}
 .nameedit{position:absolute;top:6px;left:10px;right:10px;z-index:12;background:rgba(15,17,21,.95);border:2px solid var(--accent);border-radius:10px;color:#fff;font:inherit;font-weight:700;font-size:18px;text-align:center;padding:6px 8px;outline:none;-webkit-user-select:text;user-select:text}
@@ -269,7 +271,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.4.1',APP_BUILD='2026-10-10';
+const APP_VERSION='1.4.2',APP_BUILD='2026-10-10';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -283,7 +285,7 @@ const KEY='mtg-life-v1';
 let S=load();
 function fresh(n,mode){
   const m=MODES[mode];
-  return{n,mode,start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:0,rounds:[],
+  return{n,mode,start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:1,rounds:[{n:1,t:0}],first:null,
     players:Array.from({length:n},(_,i)=>({name:'Player '+(i+1),life:m.life,poison:0,energy:0,exp:0,cmdr:Array(n).fill(0),cmdrB:Array(n).fill(0),cmds:[],log:[]}))};
 }
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players){
@@ -364,7 +366,11 @@ function dead(p){return p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.
 function update(){
   S.players.forEach((p,i)=>{
     const {P}=panels[i];
-    const nm=P.querySelector('.name');nm.textContent=p.name;
+    const nm=P.querySelector('.name');nm.textContent='';
+    if(S.first===i){   // went first: gold stars either side of the name; tapping one starts the next round
+      const star=()=>{const e=el('span','star','★');e.title='Went first - tap to start the next round';e.onclick=ev=>{ev.stopPropagation();nextRound()};return e};
+      nm.append(star(),document.createTextNode(' '+p.name+' '),star());
+    }else nm.append(document.createTextNode(p.name));
     P.querySelector('.cbtn').hidden=!MODES[S.mode].cmdr;   // commander damage shortcut: Commander/Brawl only
     nm.classList.toggle('editable',p.name==='Player '+(i+1));  // still the default: tap the name to rename it right here
     if(p.cmds.length){const sm=el('small');sm.textContent=p.cmds.map(c=>c.name).join(' & ')+' · art: '+[...new Set(p.cmds.map(c=>c.artist).filter(Boolean))].join(', ');nm.append(sm)}
@@ -682,16 +688,19 @@ function makeSparkles(label,cls,big,light){
 }
 /* random first player: sweep clockwise for ~4s (decelerating), land on the pick, then 3s of sparkles */
 let pickTimers=[];
+let pendingFirst=null;
 function endPick(){
   pickTimers.forEach(clearTimeout);pickTimers=[];
+  if(pendingFirst!=null){S.first=pendingFirst;pendingFirst=null;update()}
   panels.forEach(x=>{x.P.classList.remove('hl','win');x.P.querySelector('.sparkles.pick')?.remove()});
   $('app').classList.remove('picking');$('pickguard').style.display='none';
 }
-function pickRandomPlayer(label='selected!'){
+function pickRandomPlayer(label='selected!',isFirst=false){
   endPick();
   const n=S.players.length,topN=Math.floor(n/2);
   const order=[];for(let k=0;k<topN;k++)order.push(k);for(let k=n-1;k>=topN;k--)order.push(k);  // clockwise on screen: top row L→R, bottom row R→L
-  const w=Math.floor(Math.random()*n),pw=order.indexOf(w),start=Math.floor(Math.random()*n);
+  const w=Math.floor(Math.random()*n);pendingFirst=isFirst?w:null;
+  const pw=order.indexOf(w),start=Math.floor(Math.random()*n);
   const m=n*3+((pw-start+n)%n);  // number of steps so the sweep ends on the winner
   $('app').classList.add('picking');$('pickguard').style.display='block';
   let prev=null;
@@ -798,7 +807,7 @@ function openSummary(){
 function startedNewGame(){
   closeSheet();closeCmdr();clearHistory();closeModal();render();
   S.barO=orient();placeBar(bar.dataset.pos,false);   // a new game takes the bar direction from the current orientation
-  setTimeout(()=>pickRandomPlayer('goes first'),350);   // roll for who goes first as soon as the game starts
+  setTimeout(()=>pickRandomPlayer('goes first',true),350);   // roll for who goes first as soon as the game starts
   $('bPause').textContent='⏸';$('timer').textContent=fmt(S.elapsed);
 }
 $('bMenu').onclick=()=>{
@@ -826,11 +835,12 @@ function syncRound(){
   const b=$('bRound'),r=S.round||0;
   b.textContent='R'+r;b.title='Round '+r+' - tap to start round '+(r+1);b.disabled=gameIsOver;
 }
-$('bRound').onclick=()=>{
+function nextRound(){
   if(gameIsOver)return;
   record('round'+Date.now());S.round=(S.round||0)+1;(S.rounds=S.rounds||[]).push({n:S.round,t:S.elapsed});
   buzz();update();
-};
+}
+$('bRound').onclick=nextRound;
 $('bGraph').onclick=openSummary;
 $('bUndo').onclick=undo;$('bRedo').onclick=redo;
 $('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'▶️':'⏸';save()};
