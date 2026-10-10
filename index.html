@@ -271,7 +271,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.4.2',APP_BUILD='2026-10-10';
+const APP_VERSION='1.4.3',APP_BUILD='2026-10-10';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -719,6 +719,8 @@ function pickRandomPlayer(label='selected!',isFirst=false){
 }
 $('pickguard').onclick=endPick;
 /* game summary: life total after every life event, drawn to a PNG (shown as an <img> so iOS long-press Save also works) */
+/* the round that was in progress at game-clock time t (0 if rounds weren't tracked) */
+const roundAt=t=>{const r=(S.rounds||[]).filter(x=>x.t<=t);return r.length?r[r.length-1].n:0};
 function drawSummary(cv,W){
   const n=S.players.length,u=W/360,H=Math.round((364+28*n)*u);cv.width=W;cv.height=H;
   const c=cv.getContext('2d'),F=(sz,w)=>`${w||500} ${sz*u}px -apple-system,"Segoe UI",system-ui,sans-serif`;
@@ -774,7 +776,7 @@ function drawSummary(cv,W){
     c.beginPath();c.arc(22*u,y+7*u,6*u,0,7);c.fillStyle=colorOf(i);c.fill();c.lineWidth=1.5*u;c.strokeStyle='rgba(255,255,255,.7)';c.stroke();
     c.fillStyle='#f3f4f6';c.font=F(13,700);c.fillText(`${pos+1}. ${q.name}`,36*u,y+10*u);
     const d=q.defeat,out=i===win?'Winner!':!d?'':d.type==='life'?'Defeated':d.type==='poison'?'Poisoned':`Defeated by ${d.by}!`;
-    let sub=[q.cmds.map(x=>x.name).join(' & '),out&&d&&i!==win&&q.defeatT!=null?`${out} at ${fmt(q.defeatT)}`:out].filter(Boolean).join(' · ');
+    let sub=[out&&d&&i!==win&&q.defeatT!=null?`${out} at ${fmt(q.defeatT)}${roundAt(q.defeatT)?` · R${roundAt(q.defeatT)}`:''}`:out,q.cmds.map(x=>x.name).join(' & ')].filter(Boolean).join(' · ');   // outcome first so a long commander name is what gets shortened
     c.font=F(10);c.fillStyle='#9aa0ab';const maxW=W-16*u-70*u-36*u;
     while(sub&&c.measureText(sub).width>maxW)sub=sub.slice(0,-2)+'…';
     c.fillText(sub,36*u,y+22*u);
