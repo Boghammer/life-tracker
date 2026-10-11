@@ -147,6 +147,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 .status .icon{font-size:min(30vw,26vh);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
 .panel.n5 .status .icon,.panel.n6 .status .icon{font-size:min(22vw,18vh)}
 .status .why{font-size:min(7vw,5.5vh);font-weight:800;letter-spacing:.04em;text-shadow:0 2px 8px rgba(0,0,0,.8);color:#fff}
+.status .place{margin-top:6px;font-size:min(4.2vw,3.2vh);font-weight:700;color:#fff;opacity:.92;text-shadow:0 2px 6px rgba(0,0,0,.8)}
 .status .icon+.why{font-size:min(5vw,4vh);text-transform:uppercase;letter-spacing:.14em}
 .panel.dead .status{display:flex}.panel.dead .life{opacity:.25}
 
@@ -271,7 +272,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.5.0',APP_BUILD='2026-10-11';
+const APP_VERSION='1.5.1',APP_BUILD='2026-10-11';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -362,6 +363,11 @@ function defeatCauses(p,i){
   return c;
 }
 let gameIsOver=false;
+/* finish place: still-in players beat eliminated ones; among the eliminated, later out is better; ties share a place */
+const outTime=i=>{const q=S.players[i];return dead(q)?(q.defeatT!=null?q.defeatT:-1):Infinity};
+const placeOf=i=>1+S.players.filter((q,j)=>outTime(j)>outTime(i)).length;
+const placeIcon=i=>{const pl=placeOf(i),last=Math.max(...S.players.map((q,j)=>placeOf(j)));return pl===last&&pl>1?'⚰️':({1:'🥇',2:'🥈',3:'🥉'})[pl]||'🎗️'};
+const ordinal=n=>{const t=['th','st','nd','rd'],v=n%100;return n+(t[(v-20)%10]||t[v]||t[0])};
 function dead(p){return p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
 function update(){
   S.players.forEach((p,i)=>{
@@ -436,6 +442,10 @@ function update(){
       b.append(t);
     });
     
+  });
+  S.players.forEach((p,i)=>{
+    const st=panels[i].P.querySelector('.status');st.querySelector('.place')?.remove();
+    if(p.defeat)st.insertAdjacentHTML('beforeend',`<div class="place">${placeIcon(i)} ${ordinal(placeOf(i))} place</div>`);
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
   const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
@@ -773,13 +783,12 @@ function drawSummary(cv,W){
   // Each row: place icon, a dot in the player's color holding their turn-order number (Player 1 first, then clockwise), name.
   const turnPos={};
   {const topN=Math.floor(n/2),ord=[];for(let k=0;k<topN;k++)ord.push(k);for(let k=n-1;k>=topN;k--)ord.push(k);ord.forEach((pi,k)=>{turnPos[pi]=k+1})}
-  const when=pi=>pi===win?Infinity:(S.players[pi].defeatT!=null?S.players[pi].defeatT:-1);   // later out = better finish
+  const when=outTime;   // later out = better finish
   const ranked=S.players.map((q,pi)=>pi).sort((a,b)=>when(b)-when(a)||turnPos[a]-turnPos[b]);
-  const place=pi=>1+ranked.filter(o=>when(o)>when(pi)).length;   // players eliminated together share a place
-  const lastPlace=Math.max(...ranked.map(place)),medal={1:'🥇',2:'🥈',3:'🥉'};
+  const place=placeOf;   // players eliminated together share a place
   ranked.forEach((i,pos)=>{
     const q=S.players[i],y=B+34*u+pos*28*u,pl=place(i);
-    const icon=pl===lastPlace&&pl>1?'⚰️':(medal[pl]||'🎗️');
+    const icon=placeIcon(i);
     c.textAlign='left';c.font=F(15);c.fillStyle='#f3f4f6';c.fillText(icon,12*u,y+13*u);
     const col=colorOf(i);
     c.beginPath();c.arc(44*u,y+7*u,8*u,0,7);c.fillStyle=col;c.fill();c.lineWidth=1.5*u;c.strokeStyle='rgba(255,255,255,.7)';c.stroke();
