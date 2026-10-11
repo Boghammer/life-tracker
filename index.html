@@ -148,6 +148,8 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 .panel.n5 .status .icon,.panel.n6 .status .icon{font-size:min(22vw,18vh)}
 .status .why{font-size:min(7vw,5.5vh);font-weight:800;letter-spacing:.04em;text-shadow:0 2px 8px rgba(0,0,0,.8);color:#fff}
 .status .place{margin-top:6px;font-size:min(4.2vw,3.2vh);font-weight:700;color:#fff;opacity:.92;text-shadow:0 2px 6px rgba(0,0,0,.8)}
+.status .place.tap{pointer-events:auto;cursor:pointer;touch-action:manipulation;padding:8px 14px;text-decoration:underline dotted;text-underline-offset:4px}
+.status .place.tap:active{opacity:.6}
 .status .icon+.why{font-size:min(5vw,4vh);text-transform:uppercase;letter-spacing:.14em}
 .panel.dead .status{display:flex}.panel.dead .life{opacity:.25}
 
@@ -272,7 +274,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.5.1',APP_BUILD='2026-10-11';
+const APP_VERSION='1.6.1',APP_BUILD='2026-10-11';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -367,6 +369,34 @@ let gameIsOver=false;
 const outTime=i=>{const q=S.players[i];return dead(q)?(q.defeatT!=null?q.defeatT:-1):Infinity};
 const placeOf=i=>1+S.players.filter((q,j)=>outTime(j)>outTime(i)).length;
 const placeIcon=i=>{const pl=placeOf(i),last=Math.max(...S.players.map((q,j)=>placeOf(j)));return pl===last&&pl>1?'⚰️':({1:'🥇',2:'🥈',3:'🥉'})[pl]||'🎗️'};
+/* A tie is recorded by giving a player the same elimination time as the player directly above them (the original is kept
+   so it can be undone). Everything else - places, icons, the summary legend and graph, rounds - already follows from that time. */
+function tieInfo(i){
+  const t=outTime(i);if(!isFinite(t))return null;   // still in the game: nothing to tie
+  const better=S.players.map((q,j)=>j).filter(j=>j!==i&&isFinite(outTime(j))&&outTime(j)>t);   // players still in can never be tied with
+  if(!better.length)return null;
+  const next=Math.min(...better.map(outTime)),mates=better.filter(j=>outTime(j)===next);
+  return {mates,time:next,place:placeOf(mates[0])};
+}
+function openTie(i){
+  const p=S.players[i],names=js=>{const a=js.map(j=>esc(S.players[j].name));return a.length>1?a.slice(0,-1).join(', ')+' &amp; '+a[a.length-1]:a[0]};
+  if(p.defeatT0!=null){
+    const was=outTime(i);let back;p.defeatT=p.defeatT0;back=ordinal(placeOf(i));p.defeatT=was;   // preview the place without the tie
+    modal(`<h2>Undo tie?</h2><p class="hint">${esc(p.name)} goes back to ${back} place.</p>
+<button class="big" style="margin-top:14px" id="yes">Yes, undo the tie</button><button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
+      c.querySelector('#x').onclick=closeModal;
+      c.querySelector('#yes').onclick=()=>{record('tie'+Date.now());p.defeatT=p.defeatT0;p.defeatT0=null;closeModal();update()};
+    });
+    return;
+  }
+  const info=tieInfo(i);if(!info)return;
+  const pl=ordinal(info.place),group=S.players.map((q,j)=>j).filter(j=>j===i||(dead(S.players[j])&&outTime(j)===outTime(i)));   // players already tied with this one move up together
+  modal(`<h2>Tie for ${pl} place?</h2><p class="hint">${names([...info.mates,...group])} were eliminated at the same time, so they share ${pl} place.</p>
+<button class="big" style="margin-top:14px" id="yes">Yes, tie with ${names(info.mates)}</button><button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
+    c.querySelector('#x').onclick=closeModal;
+    c.querySelector('#yes').onclick=()=>{record('tie'+Date.now());group.forEach(j=>{const q=S.players[j];if(q.defeatT0==null)q.defeatT0=q.defeatT;q.defeatT=info.time});closeModal();update()};
+  });
+}
 const ordinal=n=>{const t=['th','st','nd','rd'],v=n%100;return n+(t[(v-20)%10]||t[v]||t[0])};
 function dead(p){return p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
 function update(){
@@ -398,7 +428,7 @@ function update(){
       const cs=defeatCauses(p,i),cur=cs.find(c=>p.defeat&&c.key===p.defeat.key)||cs[0];
       if(!p.defeat||p.defeat.key!==cur.key||p.defeat.by!==cur.by)p.defeat=cur;
       if(p.defeatT==null)p.defeatT=S.elapsed;   // when they were eliminated (game clock, seconds)
-    }else{delete p.defeat;p.defeatT=null}
+    }else{delete p.defeat;p.defeatT=null;p.defeatT0=null}
     const st=P.querySelector('.status'),d=p.defeat;
     st.innerHTML=!d?'':d.type==='life'?'<div class="icon">☠️</div><div class="why">Defeated</div>'
       :d.type==='poison'?'<div class="icon">🧪</div><div class="why">Poisoned</div>'
@@ -445,7 +475,11 @@ function update(){
   });
   S.players.forEach((p,i)=>{
     const st=panels[i].P.querySelector('.status');st.querySelector('.place')?.remove();
-    if(p.defeat)st.insertAdjacentHTML('beforeend',`<div class="place">${placeIcon(i)} ${ordinal(placeOf(i))} place</div>`);
+    if(p.defeat){
+      const can=p.defeatT0!=null||!!tieInfo(i),d=el('div','place'+(can?' tap':''),`${placeIcon(i)} ${ordinal(placeOf(i))} place`);
+      if(can){d.title=p.defeatT0!=null?'Tied - tap to undo':'Tap if you were eliminated at the same time as the player above';d.onclick=ev=>{ev.stopPropagation();openTie(i)}}
+      st.append(d);
+    }
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
   const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
@@ -455,7 +489,7 @@ function update(){
 /* undo / redo: snapshots of the game numbers (life, counters, commander damage, tokens, log). Rapid repeated changes
    to the same thing within 1.5s are one step, so a burst of taps undoes together. */
 const undoStack=[],redoStack=[];let lastKey=null,lastT=0;
-const snap=()=>JSON.stringify({round:S.round||0,rounds:S.rounds||[],pl:S.players.map(p=>({life:p.life,poison:p.poison,energy:p.energy,exp:p.exp,blessing:!!p.blessing,speed:p.speed||0,defeatT:p.defeatT??null,cmdr:p.cmdr,cmdrB:p.cmdrB,log:p.log})),monarch:S.monarch,initiative:S.initiative});
+const snap=()=>JSON.stringify({round:S.round||0,rounds:S.rounds||[],pl:S.players.map(p=>({life:p.life,poison:p.poison,energy:p.energy,exp:p.exp,blessing:!!p.blessing,speed:p.speed||0,defeatT:p.defeatT??null,defeatT0:p.defeatT0??null,cmdr:p.cmdr,cmdrB:p.cmdrB,log:p.log})),monarch:S.monarch,initiative:S.initiative});
 function record(key){
   const now=Date.now();
   if(key===lastKey&&now-lastT<1500){lastT=now;return}
