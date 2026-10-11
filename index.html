@@ -271,7 +271,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.4.4',APP_BUILD='2026-10-10';
+const APP_VERSION='1.5.0',APP_BUILD='2026-10-11';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -769,23 +769,35 @@ function drawSummary(cv,W){
     else{c.beginPath();c.arc(ex,ey,4.4*u,0,7);c.fillStyle=col;c.fill();c.lineWidth=2*u;c.strokeStyle='#fff';c.stroke()}
   });
   c.textAlign='left';
-  // legend in turn order: Player 1 first, then clockwise around the phone (top row left to right, bottom row right to left)
-  const topN=Math.floor(n/2),order=[];for(let k=0;k<topN;k++)order.push(k);for(let k=n-1;k>=topN;k--)order.push(k);
-  order.forEach((i,pos)=>{
-    const q=S.players[i],y=B+34*u+pos*28*u;
-    c.beginPath();c.arc(22*u,y+7*u,6*u,0,7);c.fillStyle=colorOf(i);c.fill();c.lineWidth=1.5*u;c.strokeStyle='rgba(255,255,255,.7)';c.stroke();
-    c.fillStyle='#f3f4f6';c.font=F(13,700);const head=`${pos+1}. ${q.name}`;c.fillText(head,36*u,y+10*u);
+  // Legend in order of finish: the winner, then the last player eliminated, and so on back to the first one out.
+  // Each row: place icon, a dot in the player's color holding their turn-order number (Player 1 first, then clockwise), name.
+  const turnPos={};
+  {const topN=Math.floor(n/2),ord=[];for(let k=0;k<topN;k++)ord.push(k);for(let k=n-1;k>=topN;k--)ord.push(k);ord.forEach((pi,k)=>{turnPos[pi]=k+1})}
+  const when=pi=>pi===win?Infinity:(S.players[pi].defeatT!=null?S.players[pi].defeatT:-1);   // later out = better finish
+  const ranked=S.players.map((q,pi)=>pi).sort((a,b)=>when(b)-when(a)||turnPos[a]-turnPos[b]);
+  const place=pi=>1+ranked.filter(o=>when(o)>when(pi)).length;   // players eliminated together share a place
+  const lastPlace=Math.max(...ranked.map(place)),medal={1:'🥇',2:'🥈',3:'🥉'};
+  ranked.forEach((i,pos)=>{
+    const q=S.players[i],y=B+34*u+pos*28*u,pl=place(i);
+    const icon=pl===lastPlace&&pl>1?'⚰️':(medal[pl]||'🎗️');
+    c.textAlign='left';c.font=F(15);c.fillStyle='#f3f4f6';c.fillText(icon,12*u,y+13*u);
+    const col=colorOf(i);
+    c.beginPath();c.arc(44*u,y+7*u,8*u,0,7);c.fillStyle=col;c.fill();c.lineWidth=1.5*u;c.strokeStyle='rgba(255,255,255,.7)';c.stroke();
+    c.textAlign='center';c.font=F(10,800);c.fillStyle=isLight(col)?'#111':'#fff';c.fillText(String(turnPos[i]),44*u,y+10.5*u);
+    c.textAlign='left';
+    const nx=58*u;
+    c.fillStyle='#f3f4f6';c.font=F(13,700);const head=q.name;c.fillText(head,nx,y+10*u);
     if(q.cmds.length){   // commander(s) in parentheses right after the player name, shortened to fit before the life total
       const hw=c.measureText(head).width;c.font=F(12);c.fillStyle='#9aa0ab';
-      let cm=q.cmds.map(x=>x.name).join(' & '),room=W-16*u-44*u-(36*u+hw)-4*u;
+      let cm=q.cmds.map(x=>x.name).join(' & '),room=W-16*u-44*u-(nx+hw)-4*u;
       let txt=` (${cm})`;while(cm.length>1&&c.measureText(txt).width>room){cm=cm.slice(0,-2);txt=` (${cm}…)`}
-      c.fillText(txt,36*u+hw,y+10*u);
+      c.fillText(txt,nx+hw,y+10*u);
     }
     const d=q.defeat,out=i===win?'Winner!':!d?'':d.type==='life'?'Defeated':d.type==='poison'?'Poisoned':`Defeated by ${d.by}!`;
     let sub=out&&d&&i!==win&&q.defeatT!=null?`${out} at ${fmt(q.defeatT)}${roundAt(q.defeatT)?` · R${roundAt(q.defeatT)}`:''}`:out;
-    c.font=F(10);c.fillStyle='#9aa0ab';const maxW=W-16*u-70*u-36*u;
+    c.font=F(10);c.fillStyle='#9aa0ab';const maxW=W-16*u-50*u-nx;
     while(sub&&c.measureText(sub).width>maxW)sub=sub.slice(0,-2)+'…';
-    c.fillText(sub,36*u,y+22*u);
+    c.fillText(sub,nx,y+22*u);
     c.textAlign='right';c.font=F(17,800);c.fillStyle=dead(q)?'#9aa0ab':'#f3f4f6';c.fillText(Math.max(0,q.life),W-16*u,y+14*u);c.textAlign='left';
   });
 }
