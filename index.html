@@ -274,7 +274,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.8.0',APP_BUILD='2026-10-16';
+const APP_VERSION='1.8.1',APP_BUILD='2026-10-16';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -384,11 +384,11 @@ function tieInfo(i){
    Life totals are never touched, and players already out keep their places. */
 const CARD_PICKER={
   win:{base:'otag:alternate-win-condition',hint:'Cards that win the game. Search by name, or pick one below.',ph:'Search alternate-win cards…',title:n=>`🏆 ${n} wins`},
-  lose:{base:'o:"lose the game" legal:commander',hint:'Cards that make you lose the game (Commander legal). Search by name, or pick one below.',ph:'Search "lose the game" cards…',title:n=>`💀 ${n} loses`}
+  lose:{base:'(o:"lose the game" or o:"loses the game") legal:commander',hint:'Start typing a card name. Every Commander-legal card whose text says "lose the game" or "loses the game" is searched.',ph:'Start typing a card name…',title:n=>`💀 ${n} loses`,typeFirst:true,limit:25}
 };
-async function fetchCards(text,base){
+async function fetchCards(text,base,limit=12){
   const r=await fetch('https://api.scryfall.com/cards/search?order=edhrec&q='+encodeURIComponent((text?text+' ':'')+base));
-  return r.ok?(await r.json()).data.slice(0,12):[];
+  return r.ok?(await r.json()).data.slice(0,limit):[];
 }
 function openCardPicker(i,mode){
   const p=S.players[i],cfg=CARD_PICKER[mode];let timer,seq=0;
@@ -399,7 +399,7 @@ function openCardPicker(i,mode){
     const show=async text=>{
       const my=++seq;res.innerHTML='<div class="hint">Searching…</div>';
       try{
-        const cards=await fetchCards(text,cfg.base);if(my!==seq)return;
+        const cards=await fetchCards(text,cfg.base,cfg.limit||12);if(my!==seq)return;
         res.innerHTML=cards.length?'':'<div class="hint">No matching cards.</div>';
         cards.forEach(card=>{
           const img=(card.image_uris||(card.card_faces&&card.card_faces[0].image_uris)||{}).art_crop;
@@ -408,9 +408,15 @@ function openCardPicker(i,mode){
         });
       }catch(err){if(my===seq)res.innerHTML='<div class="hint">Could not reach Scryfall (offline?).</div>'}
     };
-    c.querySelector('#wq').oninput=e=>{clearTimeout(timer);const t=e.target.value.trim();timer=setTimeout(()=>show(t),350)};
+    const prompt='<div class="hint">Type to search…</div>';
+    c.querySelector('#wq').oninput=e=>{
+      clearTimeout(timer);const t=e.target.value.trim();
+      if(cfg.typeFirst&&!t){seq++;res.innerHTML=prompt;return}   // nothing typed yet: no list
+      timer=setTimeout(()=>show(t),350);
+    };
     c.querySelector('#x').onclick=closeModal;
-    show('');
+    if(cfg.typeFirst)res.innerHTML=prompt;else show('');
+    c.querySelector('#wq').focus();
   });
 }
 function confirmCard(i,mode,card,img){
