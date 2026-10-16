@@ -274,7 +274,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.7.1',APP_BUILD='2026-10-16';
+const APP_VERSION='1.8.0',APP_BUILD='2026-10-16';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -356,7 +356,7 @@ function render(){
 /* why a player is out: commander damage > poison > life; a recorded cause is kept while it still applies */
 function defeatCauses(p,i){
   const c=[];
-  if(p.out)c.push({key:'alt',type:'alt',by:p.out.by});   // beaten by someone's alternate win
+  if(p.out)c.push(p.out.kind==='lose'?{key:'lose',type:'lose',by:p.out.by}:{key:'alt',type:'alt',by:p.out.by});   // beaten by someone's alternate win
   S.players.forEach((o,j)=>{
     if(p.cmdr[j]>=21)c.push({key:`c${j}a`,type:'cmdr',by:(o.cmds[0]&&o.cmds[0].name)||o.name});
     if(p.cmdrB[j]>=21)c.push({key:`c${j}b`,type:'cmdr',by:(o.cmds[1]&&o.cmds[1].name)||o.name});
@@ -379,27 +379,32 @@ function tieInfo(i){
   const next=Math.min(...better.map(outTime)),mates=better.filter(j=>outTime(j)===next);
   return {mates,time:next,place:placeOf(mates[0])};
 }
-/* alternate win: pick the card from Scryfall's "alternate-win-condition" tag, confirm; everyone still in is eliminated at the
-   same moment (so they tie for 2nd) and life totals are untouched. Players already out keep their place. */
-async function fetchAltWin(text){
-  const r=await fetch('https://api.scryfall.com/cards/search?order=edhrec&q='+encodeURIComponent((text?text+' ':'')+'otag:alternate-win-condition'));
+/* Game result by card. "win": pick from Scryfall's alternate-win-condition tag; everyone still in is eliminated at the same
+   moment (tied for 2nd). "lose": pick a Commander-legal card whose text contains "lose the game"; that player is out at once.
+   Life totals are never touched, and players already out keep their places. */
+const CARD_PICKER={
+  win:{base:'otag:alternate-win-condition',hint:'Cards that win the game. Search by name, or pick one below.',ph:'Search alternate-win cards…',title:n=>`🏆 ${n} wins`},
+  lose:{base:'o:"lose the game" legal:commander',hint:'Cards that make you lose the game (Commander legal). Search by name, or pick one below.',ph:'Search "lose the game" cards…',title:n=>`💀 ${n} loses`}
+};
+async function fetchCards(text,base){
+  const r=await fetch('https://api.scryfall.com/cards/search?order=edhrec&q='+encodeURIComponent((text?text+' ':'')+base));
   return r.ok?(await r.json()).data.slice(0,12):[];
 }
-function openWinPicker(i){
-  const p=S.players[i];let timer,seq=0;
-  modal(`<h2>🏆 ${esc(p.name)} wins</h2><p class="hint">Cards that win the game. Search by name, or pick one below.</p>
-<input class="cmd-search" id="wq" placeholder="Search alternate-win cards…" autocomplete="off" autocapitalize="off" style="margin-top:8px"><div class="cmd-res" id="wres"></div>
+function openCardPicker(i,mode){
+  const p=S.players[i],cfg=CARD_PICKER[mode];let timer,seq=0;
+  modal(`<h2>${cfg.title(esc(p.name))}</h2><p class="hint">${cfg.hint}</p>
+<input class="cmd-search" id="wq" placeholder="${cfg.ph}" autocomplete="off" autocapitalize="off" style="margin-top:8px"><div class="cmd-res" id="wres"></div>
 <button class="big" style="margin-top:14px" id="x">Cancel</button>`,c=>{
     const res=c.querySelector('#wres');
     const show=async text=>{
       const my=++seq;res.innerHTML='<div class="hint">Searching…</div>';
       try{
-        const cards=await fetchAltWin(text);if(my!==seq)return;
+        const cards=await fetchCards(text,cfg.base);if(my!==seq)return;
         res.innerHTML=cards.length?'':'<div class="hint">No matching cards.</div>';
         cards.forEach(card=>{
           const img=(card.image_uris||(card.card_faces&&card.card_faces[0].image_uris)||{}).art_crop;
           const b=el('button','','<img alt=""><span></span>');if(img)b.querySelector('img').src=img;b.querySelector('span').textContent=card.name;
-          b.onclick=()=>confirmWin(i,card.name,img);res.append(b);
+          b.onclick=()=>confirmCard(i,mode,card.name,img);res.append(b);
         });
       }catch(err){if(my===seq)res.innerHTML='<div class="hint">Could not reach Scryfall (offline?).</div>'}
     };
@@ -408,13 +413,23 @@ function openWinPicker(i){
     show('');
   });
 }
-function confirmWin(i,card,img){
-  const p=S.players[i],others=S.players.map((q,j)=>j).filter(j=>j!==i&&!dead(S.players[j]));
+function confirmCard(i,mode,card,img){
+  const p=S.players[i],pic=img?`<img alt="" src="${esc(img)}" style="width:100%;border-radius:12px;margin:6px 0">`:'';
+  if(mode==='lose'){
+    modal(`<h2>${esc(p.name)} loses to ${esc(card)}?</h2>${pic}
+<p class="hint">${esc(p.name)} is eliminated right away. Life totals stay as they are.</p>
+<button class="big" style="margin-top:14px" id="yes">Yes, ${esc(p.name)} loses</button><button class="big" style="margin-top:8px" id="back">Back</button>`,c=>{
+      c.querySelector('#back').onclick=()=>openCardPicker(i,'lose');
+      c.querySelector('#yes').onclick=()=>{record('lose'+Date.now());p.out={by:card,kind:'lose'};closeModal();update()};
+    });
+    return;
+  }
+  const others=S.players.map((q,j)=>j).filter(j=>j!==i&&!dead(S.players[j]));
   const list=(a=>a.length>1?a.slice(0,-1).join(', ')+' &amp; '+a[a.length-1]:a[0])(others.map(j=>esc(S.players[j].name)));
-  modal(`<h2>${esc(p.name)} wins with ${esc(card)}?</h2>${img?`<img alt="" src="${esc(img)}" style="width:100%;border-radius:12px;margin:6px 0">`:''}
+  modal(`<h2>${esc(p.name)} wins with ${esc(card)}?</h2>${pic}
 <p class="hint">${list} will be eliminated and tie for 2nd place. Life totals stay as they are. Players already out keep their places.</p>
 <button class="big" style="margin-top:14px" id="yes">Yes, ${esc(p.name)} wins</button><button class="big" style="margin-top:8px" id="back">Back</button>`,c=>{
-    c.querySelector('#back').onclick=()=>openWinPicker(i);
+    c.querySelector('#back').onclick=()=>openCardPicker(i,'win');
     c.querySelector('#yes').onclick=()=>{
       record('altwin'+Date.now());
       others.forEach(j=>{S.players[j].out={by:card}});
@@ -494,6 +509,7 @@ function update(){
     const st=P.querySelector('.status'),d=p.defeat;
     st.innerHTML=!d?'':d.type==='life'?'<div class="icon">☠️</div><div class="why">Defeated</div>'
       :d.type==='poison'?'<div class="icon">🧪</div><div class="why">Poisoned</div>'
+      :d.type==='lose'?`<div class="why">Lost to ${esc(d.by)}!</div>`
       :`<div class="why">Defeated by ${esc(d.by)}!</div>`;
     const champ=!isDead&&aliveCount===1&&S.players.length>1;
     P.classList.toggle('champ',champ);
@@ -715,7 +731,7 @@ function openSheet(i){
   h+=ctr('exp','✨ Experience','',p.exp);
   h+='<h3>Tokens</h3><div class="toggles"><button id="tm" class="'+(S.monarch===i?'on':'')+'">👑 Monarch</button><button id="ti" class="'+(S.initiative===i?'on':'')+'">🏰 Initiative</button><button id="tb" class="'+(p.blessing?'on':'')+'">🏙️ City’s Blessing</button><button id="ts" class="'+(p.speed?'on':'')+'">🏎️ Start Your Engines!</button></div>';
   if(!dead(p)&&!gameIsOver&&S.players.filter(q=>!dead(q)).length>1)
-    h+='<h3>Game result</h3><div class="toggles"><button id="winbtn">🏆 Win the game…</button></div><p class="hint">For cards that win the game outright. Life totals stay as they are.</p>';
+    h+='<h3>Game result</h3><div class="toggles"><button id="winbtn">🏆 Win the game…</button><button id="losebtn">💀 Lose the game…</button></div><p class="hint">For cards that win or lose the game outright. Life totals stay as they are.</p>';
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
   h+='<button class="sdone" id="dn">Done</button>';
@@ -767,7 +783,8 @@ function openSheet(i){
   sh.querySelector('#tm').onclick=()=>{record('tok');S.monarch=S.monarch===i?null:i;update();openSheet(i)};
   sh.querySelector('#ti').onclick=()=>{record('tok');S.initiative=S.initiative===i?null:i;update();openSheet(i)};
   sh.querySelector('#tb').onclick=()=>{record('tok');p.blessing=!p.blessing;update();openSheet(i)};
-  const winBtn=sh.querySelector('#winbtn');if(winBtn)winBtn.onclick=()=>{closeSheet();openWinPicker(i)};
+  const winBtn=sh.querySelector('#winbtn');if(winBtn)winBtn.onclick=()=>{closeSheet();openCardPicker(i,'win')};
+  const loseBtn=sh.querySelector('#losebtn');if(loseBtn)loseBtn.onclick=()=>{closeSheet();openCardPicker(i,'lose')};
   sh.querySelector('#ts').onclick=()=>{record('tok');p.speed=p.speed?0:1;update();openSheet(i)};   // on: speed starts at 1; off: removed
 }
 
@@ -910,7 +927,7 @@ function drawSummary(cv,W){
       let txt=` (${cm})`;while(cm.length>1&&c.measureText(txt).width>room){cm=cm.slice(0,-2);txt=` (${cm}…)`}
       c.fillText(txt,nx+hw,y+10*u);
     }
-    const d=q.defeat,out=i===win?'Winner!':!d?'':d.type==='life'?'Defeated':d.type==='poison'?'Poisoned':`Defeated by ${d.by}!`;
+    const d=q.defeat,out=i===win?'Winner!':!d?'':d.type==='life'?'Defeated':d.type==='poison'?'Poisoned':d.type==='lose'?`Lost to ${d.by}!`:`Defeated by ${d.by}!`;
     let sub=out&&d&&i!==win&&q.defeatT!=null?`${out} at ${fmt(q.defeatT)}${roundAt(q.defeatT)?` · R${roundAt(q.defeatT)}`:''}`:out;
     c.font=F(10);c.fillStyle='#9aa0ab';const maxW=W-16*u-50*u-nx;
     while(sub&&c.measureText(sub).width>maxW)sub=sub.slice(0,-2)+'…';
