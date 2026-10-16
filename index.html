@@ -274,7 +274,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.6.1',APP_BUILD='2026-10-11';
+const APP_VERSION='1.7.0',APP_BUILD='2026-10-16';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -356,6 +356,7 @@ function render(){
 /* why a player is out: commander damage > poison > life; a recorded cause is kept while it still applies */
 function defeatCauses(p,i){
   const c=[];
+  if(p.out)c.push({key:'alt',type:'alt',by:p.out.by});   // beaten by someone's alternate win
   S.players.forEach((o,j)=>{
     if(p.cmdr[j]>=21)c.push({key:`c${j}a`,type:'cmdr',by:(o.cmds[0]&&o.cmds[0].name)||o.name});
     if(p.cmdrB[j]>=21)c.push({key:`c${j}b`,type:'cmdr',by:(o.cmds[1]&&o.cmds[1].name)||o.name});
@@ -378,6 +379,50 @@ function tieInfo(i){
   const next=Math.min(...better.map(outTime)),mates=better.filter(j=>outTime(j)===next);
   return {mates,time:next,place:placeOf(mates[0])};
 }
+/* alternate win: pick the card from Scryfall's "alternate-win-condition" tag, confirm; everyone still in is eliminated at the
+   same moment (so they tie for 2nd) and life totals are untouched. Players already out keep their place. */
+async function fetchAltWin(text){
+  const r=await fetch('https://api.scryfall.com/cards/search?order=edhrec&q='+encodeURIComponent((text?text+' ':'')+'otag:alternate-win-condition'));
+  return r.ok?(await r.json()).data.slice(0,12):[];
+}
+function openWinPicker(i){
+  const p=S.players[i];let timer,seq=0;
+  modal(`<h2>🏆 ${esc(p.name)} wins</h2><p class="hint">Cards that win the game. Search by name, or pick one below.</p>
+<input class="cmd-search" id="wq" placeholder="Search alternate-win cards…" autocomplete="off" autocapitalize="off" style="margin-top:8px"><div class="cmd-res" id="wres"></div>
+<button class="big" style="margin-top:14px" id="x">Cancel</button>`,c=>{
+    const res=c.querySelector('#wres');
+    const show=async text=>{
+      const my=++seq;res.innerHTML='<div class="hint">Searching…</div>';
+      try{
+        const cards=await fetchAltWin(text);if(my!==seq)return;
+        res.innerHTML=cards.length?'':'<div class="hint">No matching cards.</div>';
+        cards.forEach(card=>{
+          const img=(card.image_uris||(card.card_faces&&card.card_faces[0].image_uris)||{}).art_crop;
+          const b=el('button','','<img alt=""><span></span>');if(img)b.querySelector('img').src=img;b.querySelector('span').textContent=card.name;
+          b.onclick=()=>confirmWin(i,card.name,img);res.append(b);
+        });
+      }catch(err){if(my===seq)res.innerHTML='<div class="hint">Could not reach Scryfall (offline?).</div>'}
+    };
+    c.querySelector('#wq').oninput=e=>{clearTimeout(timer);const t=e.target.value.trim();timer=setTimeout(()=>show(t),350)};
+    c.querySelector('#x').onclick=closeModal;
+    show('');
+  });
+}
+function confirmWin(i,card,img){
+  const p=S.players[i],others=S.players.map((q,j)=>j).filter(j=>j!==i&&!dead(S.players[j]));
+  const list=(a=>a.length>1?a.slice(0,-1).join(', ')+' &amp; '+a[a.length-1]:a[0])(others.map(j=>esc(S.players[j].name)));
+  modal(`<h2>${esc(p.name)} wins with ${esc(card)}?</h2>${img?`<img alt="" src="${esc(img)}" style="width:100%;border-radius:12px;margin:6px 0">`:''}
+<p class="hint">${list} will be eliminated and tie for 2nd place. Life totals stay as they are. Players already out keep their places.</p>
+<button class="big" style="margin-top:14px" id="yes">Yes, ${esc(p.name)} wins</button><button class="big" style="margin-top:8px" id="back">Back</button>`,c=>{
+    c.querySelector('#back').onclick=()=>openWinPicker(i);
+    c.querySelector('#yes').onclick=()=>{
+      record('altwin'+Date.now());
+      others.forEach(j=>{S.players[j].out={by:card}});
+      S.altWin={by:card,winner:i,t:S.elapsed};
+      closeModal();update();
+    };
+  });
+}
 function openTie(i){
   const p=S.players[i],names=js=>{const a=js.map(j=>esc(S.players[j].name));return a.length>1?a.slice(0,-1).join(', ')+' &amp; '+a[a.length-1]:a[0]};
   if(p.defeatT0!=null){
@@ -398,7 +443,7 @@ function openTie(i){
   });
 }
 const ordinal=n=>{const t=['th','st','nd','rd'],v=n%100;return n+(t[(v-20)%10]||t[v]||t[0])};
-function dead(p){return p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
+function dead(p){return !!p.out||p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
 function update(){
   S.players.forEach((p,i)=>{
     const {P}=panels[i];
@@ -489,7 +534,7 @@ function update(){
 /* undo / redo: snapshots of the game numbers (life, counters, commander damage, tokens, log). Rapid repeated changes
    to the same thing within 1.5s are one step, so a burst of taps undoes together. */
 const undoStack=[],redoStack=[];let lastKey=null,lastT=0;
-const snap=()=>JSON.stringify({round:S.round||0,rounds:S.rounds||[],pl:S.players.map(p=>({life:p.life,poison:p.poison,energy:p.energy,exp:p.exp,blessing:!!p.blessing,speed:p.speed||0,defeatT:p.defeatT??null,defeatT0:p.defeatT0??null,cmdr:p.cmdr,cmdrB:p.cmdrB,log:p.log})),monarch:S.monarch,initiative:S.initiative});
+const snap=()=>JSON.stringify({altWin:S.altWin||null,round:S.round||0,rounds:S.rounds||[],pl:S.players.map(p=>({life:p.life,poison:p.poison,energy:p.energy,exp:p.exp,blessing:!!p.blessing,speed:p.speed||0,defeatT:p.defeatT??null,defeatT0:p.defeatT0??null,out:p.out||null,cmdr:p.cmdr,cmdrB:p.cmdrB,log:p.log})),monarch:S.monarch,initiative:S.initiative});
 function record(key){
   const now=Date.now();
   if(key===lastKey&&now-lastT<1500){lastT=now;return}
@@ -500,7 +545,7 @@ function clearHistory(){undoStack.length=0;redoStack.length=0;lastKey=null;syncH
 function syncHistoryButtons(){$('bUndo').disabled=!undoStack.length;$('bRedo').disabled=!redoStack.length}
 function restore(str){
   const d=JSON.parse(str);
-  d.pl.forEach((q,i)=>Object.assign(S.players[i],q));S.monarch=d.monarch;S.initiative=d.initiative;S.round=d.round||0;S.rounds=d.rounds||[];
+  d.pl.forEach((q,i)=>Object.assign(S.players[i],q));S.monarch=d.monarch;S.initiative=d.initiative;S.round=d.round||0;S.rounds=d.rounds||[];S.altWin=d.altWin||null;
   panels.forEach(x=>{clearTimeout(x.dt);x.delta=0;x.P.querySelector('.delta').classList.remove('show')});
   lastKey=null;update();
   if(sheetFor!=null)openSheet(sheetFor);
@@ -652,6 +697,8 @@ function openSheet(i){
   h+=ctr('energy','⚡ Energy','',p.energy);
   h+=ctr('exp','✨ Experience','',p.exp);
   h+='<h3>Tokens</h3><div class="toggles"><button id="tm" class="'+(S.monarch===i?'on':'')+'">👑 Monarch</button><button id="ti" class="'+(S.initiative===i?'on':'')+'">🏰 Initiative</button><button id="tb" class="'+(p.blessing?'on':'')+'">🏙️ City’s Blessing</button><button id="ts" class="'+(p.speed?'on':'')+'">🏎️ Start Your Engines!</button></div>';
+  if(!dead(p)&&!gameIsOver&&S.players.filter(q=>!dead(q)).length>1)
+    h+='<h3>Game result</h3><div class="toggles"><button id="winbtn">🏆 Win the game…</button></div><p class="hint">For cards that win the game outright. Life totals stay as they are.</p>';
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
   h+='<button class="sdone" id="dn">Done</button>';
@@ -703,6 +750,7 @@ function openSheet(i){
   sh.querySelector('#tm').onclick=()=>{record('tok');S.monarch=S.monarch===i?null:i;update();openSheet(i)};
   sh.querySelector('#ti').onclick=()=>{record('tok');S.initiative=S.initiative===i?null:i;update();openSheet(i)};
   sh.querySelector('#tb').onclick=()=>{record('tok');p.blessing=!p.blessing;update();openSheet(i)};
+  const winBtn=sh.querySelector('#winbtn');if(winBtn)winBtn.onclick=()=>{closeSheet();openWinPicker(i)};
   sh.querySelector('#ts').onclick=()=>{record('tok');p.speed=p.speed?0:1;update();openSheet(i)};   // on: speed starts at 1; off: removed
 }
 
@@ -773,7 +821,9 @@ function drawSummary(cv,W){
   c.fillStyle='#f3f4f6';c.font=F(20,800);c.fillText('Game summary',16*u,32*u);
   c.fillStyle='#9aa0ab';c.font=F(11);c.fillText(`${MODES[S.mode].label} · ${n} players · ${fmt(S.elapsed)}${S.round?` · ${S.round} round${S.round>1?'s':''}`:''} · ${new Date().toLocaleDateString()}`,16*u,50*u);
   c.font=F(15,800);c.fillStyle=win!=null?'#fbbf24':'#9aa0ab';
-  c.fillText(win!=null?`🏆 ${S.players[win].name} wins`:(alive.length===0?'Draw — nobody left standing':'Game in progress'),16*u,76*u);
+  let head=win!=null?`🏆 ${S.players[win].name} wins${S.altWin&&S.altWin.winner===win?` with ${S.altWin.by}`:''}`:(alive.length===0?'Draw — nobody left standing':'Game in progress');
+  while(head.length>3&&c.measureText(head).width>W-32*u)head=head.slice(0,-2)+'…';
+  c.fillText(head,16*u,76*u);
   c.font=F(13,700);c.fillStyle='#f3f4f6';c.fillText('Life Totals',16*u,100*u);
   const start=MODES[S.mode].life,now=S.elapsed;
   const series=S.players.map(q=>{
@@ -802,6 +852,13 @@ function drawSummary(cv,W){
     if(x-lastLabelX>=20*u){c.fillStyle='#fbbf24';c.fillText('R'+rd.n,x,T-4*u);lastLabelX=x}
   });
   c.restore();
+  if(S.altWin){   // gold marker at the moment of an alternate win
+    const x=X(Math.min(S.altWin.t,tmax));c.save();
+    c.strokeStyle='#fbbf24';c.lineWidth=2*u;c.beginPath();c.moveTo(x,T);c.lineTo(x,B);c.stroke();
+    c.font=F(10,800);c.fillStyle='#fbbf24';let lab='★ '+S.altWin.by;const right=x>L+(R-L)*0.55;c.textAlign=right?'right':'left';
+    while(lab.length>3&&c.measureText(lab).width>(right?x-L-6*u:R-x-6*u))lab=lab.slice(0,-2)+'…';
+    c.fillText(lab,right?x-4*u:x+4*u,B-6*u);c.restore();
+  }
   c.lineJoin='round';
   series.forEach((pts,i)=>{
     const col=colorOf(i),path=()=>{c.beginPath();c.moveTo(X(pts[0][0]),Y(pts[0][1]));for(let k=1;k<pts.length;k++){c.lineTo(X(pts[k][0]),Y(pts[k-1][1]));c.lineTo(X(pts[k][0]),Y(pts[k][1]))}};
