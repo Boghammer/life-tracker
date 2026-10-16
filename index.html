@@ -274,7 +274,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.7.0',APP_BUILD='2026-10-16';
+const APP_VERSION='1.7.1',APP_BUILD='2026-10-16';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -289,7 +289,7 @@ let S=load();
 function fresh(n,mode){
   const m=MODES[mode];
   return{n,mode,start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:1,rounds:[{n:1,t:0}],first:null,
-    players:Array.from({length:n},(_,i)=>({name:'Player '+(i+1),life:m.life,poison:0,energy:0,exp:0,cmdr:Array(n).fill(0),cmdrB:Array(n).fill(0),cmds:[],log:[]}))};
+    players:Array.from({length:n},(_,i)=>({name:'Player '+(i+1),defName:'Player '+(i+1),life:m.life,poison:0,energy:0,exp:0,cmdr:Array(n).fill(0),cmdrB:Array(n).fill(0),cmds:[],log:[]}))};
 }
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players){
     s.players.forEach(p=>{if(!p.cmds)p.cmds=p.cmdrName?[{name:p.cmdrName,art:p.art,artist:p.artist||''}]:[];if(!p.cmdrB)p.cmdrB=Array(s.players.length).fill(0)});return s}}catch(e){}return fresh(4,'commander')}
@@ -443,6 +443,23 @@ function openTie(i){
   });
 }
 const ordinal=n=>{const t=['th','st','nd','rd'],v=n%100;return n+(t[(v-20)%10]||t[v]||t[0])};
+const defaultName=(p,i)=>p.defName||('Player '+(i+1));
+/* clockwise seating order around the phone: top row left to right, then bottom row right to left */
+const clockwiseOrder=n=>{const topN=Math.floor(n/2),o=[];for(let k=0;k<topN;k++)o.push(k);for(let k=n-1;k>=topN;k--)o.push(k);return o};
+/* turn order: starts with whoever went first (the new-game roll), then clockwise; before a roll it starts at the first panel */
+function turnOrder(){
+  const ord=clockwiseOrder(S.players.length),at=S.first!=null?ord.indexOf(S.first):0;
+  return at>0?ord.slice(at).concat(ord.slice(0,at)):ord;
+}
+/* after the roll: number the players 1..n in turn order. Names typed in by the players are kept. */
+function renumberByTurn(){
+  if(S.first==null)return;
+  turnOrder().forEach((pi,k)=>{
+    const q=S.players[pi],isDefault=q.name===defaultName(q,pi),def='Player '+(k+1);
+    if(isDefault)q.name=def;
+    q.defName=def;
+  });
+}
 function dead(p){return !!p.out||p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21)}
 function update(){
   S.players.forEach((p,i)=>{
@@ -453,7 +470,7 @@ function update(){
       nm.append(star(),document.createTextNode(' '+p.name+' '),star());
     }else nm.append(document.createTextNode(p.name));
     P.querySelector('.cbtn').hidden=!MODES[S.mode].cmdr;   // commander damage shortcut: Commander/Brawl only
-    nm.classList.toggle('editable',p.name==='Player '+(i+1));  // still the default: tap the name to rename it right here
+    nm.classList.toggle('editable',p.name===defaultName(p,i));  // still the default: tap the name to rename it right here
     if(p.cmds.length){const sm=el('small');sm.textContent=p.cmds.map(c=>c.name).join(' & ')+' · art: '+[...new Set(p.cmds.map(c=>c.artist).filter(Boolean))].join(', ');nm.append(sm)}
     P.classList.toggle('art',p.cmds.length>0);
     let ar=P.querySelector('.arts');
@@ -588,7 +605,7 @@ function tryFocusExact(){
 }
 /* tap the default "Player #" name on the panel to rename it; once renamed, rename from the player's menu as before */
 function startNameEdit(i){
-  const P=panels[i].P,p=S.players[i],def='Player '+(i+1);
+  const P=panels[i].P,p=S.players[i],def=defaultName(p,i);
   if(P.querySelector('.nameedit'))return;
   const inp=el('input','nameedit');inp.type='text';inp.maxLength=16;inp.placeholder=def;inp.autocomplete='off';inp.setAttribute('aria-label','Player name');
   let finished=false;
@@ -703,7 +720,7 @@ function openSheet(i){
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
   h+='<button class="sdone" id="dn">Done</button>';
   sh.innerHTML=h;document.body.append(sh);sh.scrollTop=y0;
-  const nm=sh.querySelector('#nm'),defName='Player '+(i+1);
+  const nm=sh.querySelector('#nm'),defName=defaultName(p,i);
   nm.placeholder=defName;
   // first time naming: clear the default "Player #" so typing starts from an empty field
   nm.onfocus=()=>{if(p.name===defName){nm.value=''}};
@@ -783,7 +800,7 @@ let pickTimers=[];
 let pendingFirst=null;
 function endPick(){
   pickTimers.forEach(clearTimeout);pickTimers=[];
-  if(pendingFirst!=null){S.first=pendingFirst;pendingFirst=null;update()}
+  if(pendingFirst!=null){S.first=pendingFirst;pendingFirst=null;renumberByTurn();update()}
   panels.forEach(x=>{x.P.classList.remove('hl','win');x.P.querySelector('.sparkles.pick')?.remove()});
   $('app').classList.remove('picking');$('pickguard').style.display='none';
 }
@@ -873,7 +890,7 @@ function drawSummary(cv,W){
   // Legend in order of finish: the winner, then the last player eliminated, and so on back to the first one out.
   // Each row: place icon, a dot in the player's color holding their turn-order number (Player 1 first, then clockwise), name.
   const turnPos={};
-  {const topN=Math.floor(n/2),ord=[];for(let k=0;k<topN;k++)ord.push(k);for(let k=n-1;k>=topN;k--)ord.push(k);ord.forEach((pi,k)=>{turnPos[pi]=k+1})}
+  turnOrder().forEach((pi,k)=>{turnPos[pi]=k+1});
   const when=outTime;   // later out = better finish
   const ranked=S.players.map((q,pi)=>pi).sort((a,b)=>when(b)-when(a)||turnPos[a]-turnPos[b]);
   const place=placeOf;   // players eliminated together share a place
@@ -944,7 +961,7 @@ $('bMenu').onclick=()=>{
     c.querySelector('#go').onclick=()=>{S=fresh(n,mode);startedNewGame();wake()};
     c.querySelector('#same').onclick=()=>{
       const old=S;S=fresh(old.players.length,old.mode);
-      S.players.forEach((p,k)=>{const o=old.players[k];p.name=o.name;p.cmds=o.cmds||[];if(o.color)p.color=o.color;if(o.textColor)p.textColor=o.textColor});
+      S.players.forEach((p,k)=>{const o=old.players[k];p.name=o.name;p.defName=o.defName||('Player '+(k+1));p.cmds=o.cmds||[];if(o.color)p.color=o.color;if(o.textColor)p.textColor=o.textColor});
       startedNewGame();wake();
     };
     c.querySelector('#x').onclick=closeModal;
