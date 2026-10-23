@@ -213,6 +213,10 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 .cmd-cur img{width:56px;height:41px;object-fit:cover;border-radius:4px}
 .cmd-cur button{margin-left:auto;background:#333945;border-radius:8px;padding:8px 10px;font-size:13px}
 .cmd-cur [data-rm]{margin-left:6px}
+.hrow{display:flex;gap:8px;align-items:center;background:#20242c;border-radius:10px;padding:8px 10px;margin-top:6px;font-size:13px}
+.hrow .t{flex:1;min-width:0}
+.hrow button{background:#333945;border-radius:8px;padding:6px 10px;color:#fff}
+.big:disabled{opacity:.4}
 .art-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
 .art-tile{background:#20242c;border-radius:10px;padding:4px;text-align:left;position:relative;color:var(--text)}
 .art-tile img{width:100%;aspect-ratio:626/457;object-fit:cover;border-radius:8px;display:block;background:#0f1115}
@@ -291,7 +295,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.11.0',APP_BUILD='2026-10-23';
+const APP_VERSION='1.12.1',APP_BUILD='2026-10-23';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -305,7 +309,7 @@ const KEY='mtg-life-v1';
 let S=load();
 function fresh(n,mode){
   const m=MODES[mode];
-  return{n,mode,start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:1,rounds:[{n:1,t:0}],first:null,
+  return{n,mode,start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:1,rounds:[{n:1,t:0}],first:null,gameId:Date.now().toString(36)+Math.random().toString(36).slice(2,6),startedAt:Date.now(),
     players:Array.from({length:n},(_,i)=>({name:'Player '+(i+1),defName:'Player '+(i+1),life:m.life,poison:0,energy:0,exp:0,cmdr:Array(n).fill(0),cmdrB:Array(n).fill(0),cmds:[],log:[]}))};
 }
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players){
@@ -504,6 +508,100 @@ function confirmCard(i,mode,card,img){
     };
   });
 }
+/* ===== game history: saved on the phone, exported as CSV ===== */
+const HKEY='mtg-life-history',LASTEXP='mtg-life-lastexport',SHORT_GAME=180;   // seconds
+let HIST=(()=>{try{return JSON.parse(localStorage.getItem(HKEY))||[]}catch(e){return[]}})();
+let askedPersist=false;
+function persistHistory(){
+  try{localStorage.setItem(HKEY,JSON.stringify(HIST))}catch(e){}
+  if(!askedPersist&&navigator.storage&&navigator.storage.persist){askedPersist=true;navigator.storage.persist().catch(()=>{})}   // ask the browser not to evict it
+}
+function buildRecord(finished,auto){
+  const turn=turnOrder(),turnPos={};turn.forEach((pi,k)=>{turnPos[pi]=k+1});
+  const alive=S.players.map((q,i)=>i).filter(i=>!dead(S.players[i])),win=finished&&alive.length===1?alive[0]:null;
+  const lab=t=>roundAt(t)?'R'+roundAt(t):fmt(t);
+  return {id:S.gameId,startedAt:S.startedAt,finished,auto,format:MODES[S.mode].label,seconds:S.elapsed,rounds:S.round||0,
+    altWin:S.altWin?S.altWin.by:'',
+    players:S.players.map((q,i)=>{
+      const d=q.defeat;let result='In game',detail='';
+      if(i===win){result='Winner';detail=S.altWin&&S.altWin.winner===i?'Alternate win: '+S.altWin.by:'Last player standing'}
+      else if(dead(q)&&d){
+        result={life:'Defeated by life loss',poison:'Defeated by poison',cmdr:'Defeated by commander damage',alt:'Eliminated by alternate win',lose:'Lost the game',concede:'Conceded'}[d.type]||'Defeated';
+        detail=d.type==='cmdr'||d.type==='alt'||d.type==='lose'?(d.by||''):'';
+      }
+      const out=dead(q)&&d;
+      return {name:q.name,turn:turnPos[i],first:S.first===i,place:(out||i===win)?placeOf(i):'',cmds:q.cmds.map(x=>x.name).join(' & '),
+        life:q.life,poison:q.poison,cmdrMax:Math.max(0,...q.cmdr,...q.cmdrB),result,detail,
+        outRound:out&&q.defeatT!=null?(roundAt(q.defeatT)||''):'',outTime:out&&q.defeatT!=null?fmt(q.defeatT):'',
+        safe:(q.safeSpans||[]).map(sp=>sp.to==null?lab(sp.from)+'-end':(lab(sp.from)===lab(sp.to)?lab(sp.from):lab(sp.from)+'-'+lab(sp.to))).join(', ')};
+    })};
+}
+function saveGameRecord(finished,manual){
+  if(!S.gameId){S.gameId=Date.now().toString(36)+Math.random().toString(36).slice(2,6);S.startedAt=Date.now()-(S.elapsed||0)*1000}
+  const rec=buildRecord(finished,finished&&!manual),k=HIST.findIndex(r=>r.id===rec.id);
+  if(k>=0){const a=JSON.stringify({...HIST[k],savedAt:0}),b=JSON.stringify({...rec,savedAt:0});if(a===b)return;HIST[k]=rec}else HIST.push(rec);
+  persistHistory();
+}
+function dropAutoRecord(){
+  if(!S.gameId)return;const k=HIST.findIndex(r=>r.id===S.gameId&&r.auto);
+  if(k>=0){HIST.splice(k,1);persistHistory()}
+}
+function gameHasActivity(){
+  return S.elapsed>=120||(S.round||0)>1||S.players.some(q=>q.log.length||dead(q)||q.poison||q.energy||q.exp||q.cmdr.some(v=>v)||q.cmdrB.some(v=>v));
+}
+/* before a new game starts: an unfinished game with some play in it can be saved first */
+function askSaveThen(next){
+  const shortDone=gameIsOver&&S.elapsed<SHORT_GAME&&!HIST.some(r=>r.id===S.gameId);   // finished in under 3 minutes: not saved automatically
+  const unfinished=!gameIsOver&&gameHasActivity();
+  if(!shortDone&&!unfinished){next();return}
+  const text=shortDone?'This game ended in under 3 minutes, so it may have been a test. Save it to your game history?'
+    :"This game isn't finished. If you save it, it's added to your game history with where everyone stands now.";
+  modal(`<h2>Save this game first?</h2><p class="hint">${text}</p>
+<button class="big" style="margin-top:14px" id="sv">Save, then start a new game</button>
+<button class="big" style="margin-top:8px" id="ns">Don't save</button>
+<button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
+    c.querySelector('#sv').onclick=()=>{saveGameRecord(gameIsOver,true);next()};
+    c.querySelector('#ns').onclick=()=>next();
+    c.querySelector('#x').onclick=closeModal;
+  });
+}
+const csvCell=v=>{v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+function historyCsv(){
+  const head=['game_id','date','start_time','format','game_length','game_length_seconds','rounds','status','winner','player','turn_order','went_first','place','commander','final_life','final_poison','max_commander_damage','result','detail','eliminated_round','eliminated_time','cant_lose'];
+  const rows=[head];
+  HIST.slice().sort((a,b)=>a.startedAt-b.startedAt).forEach(g=>{
+    const d=new Date(g.startedAt),date=d.toLocaleDateString('en-CA'),time=d.toTimeString().slice(0,5);
+    const winner=(g.players.find(p=>p.result==='Winner')||{}).name||(g.finished?'Draw':'');
+    g.players.slice().sort((a,b)=>a.turn-b.turn).forEach(p=>rows.push([g.id,date,time,g.format,fmt(g.seconds),g.seconds,g.rounds,g.finished?'Finished':'Unfinished',winner,
+      p.name,p.turn,p.first?'Yes':'No',p.place,p.cmds,p.life,p.poison,p.cmdrMax,p.result,p.detail,p.outRound,p.outTime,p.safe]));
+  });
+  return '\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n';
+}
+function exportHistory(){
+  if(!HIST.length)return;
+  const name='bog-life-games-'+new Date().toLocaleDateString('en-CA')+'.csv';
+  const file=new File([historyCsv()],name,{type:'text/csv'});
+  const done=()=>{try{localStorage.setItem(LASTEXP,String(Date.now()))}catch(e){}};
+  if(navigator.canShare&&navigator.canShare({files:[file]}))navigator.share({files:[file],title:'Bog Life games'}).then(done).catch(()=>{});
+  else{const url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);done()}
+}
+function openHistory(){
+  const last=+localStorage.getItem(LASTEXP)||0;
+  const rows=HIST.slice().sort((a,b)=>b.startedAt-a.startedAt).map(g=>{
+    const d=new Date(g.startedAt),w=g.players.find(p=>p.result==='Winner');
+    return `<div class="hrow"><div class="t"><b>${esc(d.toLocaleDateString(undefined,{month:'short',day:'numeric'}))} · ${esc(g.format)} · ${g.players.length} players · ${fmt(g.seconds)}</b><br><span style="color:var(--muted)">${g.finished?(w?'Winner: '+esc(w.name):'Draw'):'Unfinished'}</span></div><button data-del="${esc(g.id)}" title="Delete">✕</button></div>`;
+  }).join('');
+  modal(`<h2>📒 Game history</h2><p class="hint">${HIST.length} game${HIST.length===1?'':'s'} saved on this phone. ${last?'Last exported '+esc(new Date(last).toLocaleDateString())+'.':'Not exported yet.'}</p>
+<div style="max-height:46vh;overflow-y:auto">${rows||'<p class="hint">Finished games appear here automatically.</p>'}</div>
+<button class="big" style="margin-top:14px" id="exp"${HIST.length?'':' disabled'}>Export CSV</button><button class="big" style="margin-top:8px" id="x">Close</button>`,c=>{
+    c.querySelector('#x').onclick=closeModal;
+    c.querySelector('#exp').onclick=exportHistory;
+    c.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+      if(!confirm('Delete this game from your history?'))return;
+      HIST=HIST.filter(g=>g.id!==b.dataset.del);persistHistory();openHistory();
+    });
+  });
+}
 function openTie(i){
   const p=S.players[i],names=js=>{const a=js.map(j=>esc(S.players[j].name));return a.length>1?a.slice(0,-1).join(', ')+' &amp; '+a[a.length-1]:a[0]};
   if(p.defeatT0!=null){
@@ -647,7 +745,8 @@ function update(){
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
   const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
-  gameIsOver=over;$('bGraph').hidden=!over;syncRound();   // graph icon appears in the bar once the game has ended
+  gameIsOver=over;$('bGraph').hidden=!over;syncRound();
+  if(over){if(S.elapsed>=SHORT_GAME)saveGameRecord(true)}else dropAutoRecord();   // games under 3 minutes are probably tests: asked about before the next game starts   // finished games are kept; a game that's reopened (undo) is not   // graph icon appears in the bar once the game has ended
   save();
 }
 /* undo / redo: snapshots of the game numbers (life, counters, commander damage, tokens, log). Rapid repeated changes
@@ -1089,17 +1188,19 @@ $('bMenu').onclick=()=>{
 <h3>Format</h3><div class="grid" id="modes">${Object.entries(MODES).map(([k,m])=>`<button data-m="${k}" class="${k===mode?'on':''}">${m.label}<br><small>${m.life} life</small></button>`).join('')}</div>
 <h3>Players</h3><div class="grid" id="ns">${[2,3,4,5,6].map(x=>`<button data-n="${x}" class="${x===n?'on':''}">${x}</button>`).join('')}</div>
 <button class="big" style="margin-top:18px" id="go">Start new game</button>
+<button class="big" style="margin-top:8px" id="hist">📒 Game history (${HIST.length})</button>
 <button class="big" style="margin-top:8px" id="same">New game, same players<br><small style="font-weight:500;color:var(--muted)">Keeps names, commanders and colors</small></button>
 <button class="big" style="margin-top:8px" id="x">Cancel</button>
 <p class="hint" style="text-align:center;margin-top:16px">${versionLine()}<br>Made w/ Claude Code</p>`,c=>{
     const pick=(sel,attr,fn)=>c.querySelectorAll(sel).forEach(b=>b.onclick=()=>{c.querySelectorAll(sel).forEach(y=>y.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr])});
     pick('[data-m]','m',v=>mode=v);pick('[data-n]','n',v=>n=+v);
-    c.querySelector('#go').onclick=()=>{S=fresh(n,mode);startedNewGame();wake()};
-    c.querySelector('#same').onclick=()=>{
+    c.querySelector('#hist').onclick=openHistory;
+    c.querySelector('#go').onclick=()=>askSaveThen(()=>{S=fresh(n,mode);startedNewGame();wake()});
+    c.querySelector('#same').onclick=()=>askSaveThen(()=>{
       const old=S;S=fresh(old.players.length,old.mode);
       S.players.forEach((p,k)=>{const o=old.players[k];p.name=o.name;p.defName=o.defName||('Player '+(k+1));p.cmds=o.cmds||[];if(o.color)p.color=o.color;if(o.textColor)p.textColor=o.textColor});
       startedNewGame();wake();
-    };
+    });
     c.querySelector('#x').onclick=closeModal;
   });
 };
