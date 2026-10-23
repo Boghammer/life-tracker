@@ -295,7 +295,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.12.1',APP_BUILD='2026-10-23';
+const APP_VERSION='1.12.2',APP_BUILD='2026-10-23';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -550,8 +550,19 @@ function gameHasActivity(){
   return S.elapsed>=120||(S.round||0)>1||S.players.some(q=>q.log.length||dead(q)||q.poison||q.energy||q.exp||q.cmdr.some(v=>v)||q.cmdrB.some(v=>v));
 }
 /* before a new game starts: an unfinished game with some play in it can be saved first */
+/* a game that ends in under 3 minutes is probably a test: ask right away whether to keep it */
+function maybeAskSaveNow(){
+  if(!gameIsOver||S.elapsed>=SHORT_GAME||S.saveAnswered||S.saveAsked||HIST.some(r=>r.id===S.gameId))return;
+  if(sheetFor!=null||cmdrFor!=null||$('modal').classList.contains('open'))return;   // wait until nothing is covering the board
+  S.saveAsked=true;
+  modal(`<h2>Save this game?</h2><p class="hint">This game ended in under 3 minutes, so it may have been a test. Save it to your game history?</p>
+<button class="big" style="margin-top:14px" id="sv">Save</button><button class="big" style="margin-top:8px" id="ns">Don't save</button>`,c=>{
+    c.querySelector('#sv').onclick=()=>{saveGameRecord(true,true);S.saveAnswered='saved';closeModal()};
+    c.querySelector('#ns').onclick=()=>{S.saveAnswered='skipped';closeModal()};
+  });
+}
 function askSaveThen(next){
-  const shortDone=gameIsOver&&S.elapsed<SHORT_GAME&&!HIST.some(r=>r.id===S.gameId);   // finished in under 3 minutes: not saved automatically
+  const shortDone=gameIsOver&&S.elapsed<SHORT_GAME&&!S.saveAnswered&&!HIST.some(r=>r.id===S.gameId);   // not answered yet (e.g. the first question was dismissed)   // finished in under 3 minutes: not saved automatically
   const unfinished=!gameIsOver&&gameHasActivity();
   if(!shortDone&&!unfinished){next();return}
   const text=shortDone?'This game ended in under 3 minutes, so it may have been a test. Save it to your game history?'
@@ -567,13 +578,14 @@ function askSaveThen(next){
 }
 const csvCell=v=>{v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
 function historyCsv(){
-  const head=['game_id','date','start_time','format','game_length','game_length_seconds','rounds','status','winner','player','turn_order','went_first','place','commander','final_life','final_poison','max_commander_damage','result','detail','eliminated_round','eliminated_time','cant_lose'];
+  const head=['game_id','date','start_time','format','game_length','game_length_seconds','rounds','status','winner','player','turn_order','went_first','place','commander','final_life','final_poison','max_commander_damage_taken','result','detail','eliminated_round','eliminated_time','cant_lose'];
   const rows=[head];
   HIST.slice().sort((a,b)=>a.startedAt-b.startedAt).forEach(g=>{
     const d=new Date(g.startedAt),date=d.toLocaleDateString('en-CA'),time=d.toTimeString().slice(0,5);
     const winner=(g.players.find(p=>p.result==='Winner')||{}).name||(g.finished?'Draw':'');
+    const firstKnown=g.players.some(p=>p.first===true);   // blank when nobody was recorded as going first
     g.players.slice().sort((a,b)=>a.turn-b.turn).forEach(p=>rows.push([g.id,date,time,g.format,fmt(g.seconds),g.seconds,g.rounds,g.finished?'Finished':'Unfinished',winner,
-      p.name,p.turn,p.first?'Yes':'No',p.place,p.cmds,p.life,p.poison,p.cmdrMax,p.result,p.detail,p.outRound,p.outTime,p.safe]));
+      p.name,p.turn,firstKnown?(p.first?'Yes':'No'):'',p.place,p.cmds,p.life,p.poison,p.cmdrMax,p.result,p.detail,p.outRound,p.outTime,p.safe]));
   });
   return '\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n';
 }
@@ -745,8 +757,15 @@ function update(){
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
   const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
-  gameIsOver=over;$('bGraph').hidden=!over;syncRound();
-  if(over){if(S.elapsed>=SHORT_GAME)saveGameRecord(true)}else dropAutoRecord();   // games under 3 minutes are probably tests: asked about before the next game starts   // finished games are kept; a game that's reopened (undo) is not   // graph icon appears in the bar once the game has ended
+  const wasOver=gameIsOver;gameIsOver=over;$('bGraph').hidden=!over;syncRound();
+  if(over){
+    if(S.elapsed>=SHORT_GAME)saveGameRecord(true);
+    else if(S.saveAnswered==='saved')saveGameRecord(true,true);   // a short game you chose to keep stays current (e.g. after fixing a tie)
+    else maybeAskSaveNow();
+  }else{
+    dropAutoRecord();
+    if(S.saveAnswered==='saved'){HIST=HIST.filter(r=>r.id!==S.gameId);persistHistory();S.saveAnswered=null;S.saveAsked=false}   // game reopened by undo
+  }   // games under 3 minutes are probably tests: asked about before the next game starts   // finished games are kept; a game that's reopened (undo) is not   // graph icon appears in the bar once the game has ended
   save();
 }
 /* undo / redo: snapshots of the game numbers (life, counters, commander damage, tokens, log). Rapid repeated changes
@@ -821,7 +840,7 @@ function startNameEdit(i){
 }
 /* quick commander-damage overlay: full screen, one player at a time (turned to face top-row players) */
 let cmdrFor=null;
-function closeCmdr(){document.querySelector('.cmdr-ov')?.remove();cmdrFor=null}
+function closeCmdr(){document.querySelector('.cmdr-ov')?.remove();cmdrFor=null;maybeAskSaveNow()}
 function openCmdr(i){
   closeCmdr();cmdrFor=i;
   const p=S.players[i],ov=el('div','cmdr-ov full');
@@ -1177,6 +1196,7 @@ function openSummary(){
   });
 }
 function startedNewGame(){
+  gameIsOver=false;   // the previous game's state must not leak into the checks below
   closeSheet();closeCmdr();clearHistory();closeModal();render();
   S.barO=orient();placeBar(bar.dataset.pos,false);   // a new game takes the bar direction from the current orientation
   setTimeout(()=>pickRandomPlayer('goes first',true),350);   // roll for who goes first as soon as the game starts
