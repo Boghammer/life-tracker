@@ -212,6 +212,13 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 .cmd-cur{display:flex;align-items:center;gap:8px;background:#20242c;border-radius:8px;padding:4px;font-size:13px;margin-bottom:6px}
 .cmd-cur img{width:56px;height:41px;object-fit:cover;border-radius:4px}
 .cmd-cur button{margin-left:auto;background:#333945;border-radius:8px;padding:8px 10px;font-size:13px}
+.cmd-cur [data-rm]{margin-left:6px}
+.art-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px}
+.art-tile{background:#20242c;border-radius:10px;padding:4px;text-align:left;position:relative;color:var(--text)}
+.art-tile img{width:100%;aspect-ratio:626/457;object-fit:cover;border-radius:8px;display:block;background:#0f1115}
+.art-tile small{display:block;font-size:11px;color:var(--muted);padding:3px 2px 1px;line-height:1.25}
+.art-tile.cur{outline:2px solid var(--accent)}
+.art-tile .face{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.65);color:#fff;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700}
 .ctr .lbl{font-size:13px;min-width:0;flex:1}
 .ctr .stepper{gap:4px;flex:none}
 .ctr .stepper button{width:34px;height:34px;font-size:20px}
@@ -284,7 +291,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.10.0',APP_BUILD='2026-10-18';
+const APP_VERSION='1.11.0',APP_BUILD='2026-10-23';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -427,6 +434,39 @@ function openCardPicker(i,mode){
     c.querySelector('#x').onclick=closeModal;
     if(cfg.typeFirst)res.innerHTML=prompt;else show('');
     c.querySelector('#wq').focus();
+  });
+}
+async function fetchArtworks(name){
+  const get=async q=>{const r=await fetch('https://api.scryfall.com/cards/search?unique=art&order=released&include_extras=true&q='+encodeURIComponent(q));return r.ok?(await r.json()).data:[]};
+  let cards=await get('!"'+name.replace(/"/g,'')+'"');
+  if(!cards.length&&name.includes(' // '))cards=await get('!"'+name.split(' // ')[0]+'"');   // fall back to the front face name
+  const tiles=[];
+  cards.slice(0,60).forEach(card=>{
+    const faces=card.image_uris?[{img:card.image_uris,artist:card.artist,label:'',ill:card.illustration_id}]:(card.card_faces||[]).filter(f=>f.image_uris).map((f,n)=>({img:f.image_uris,artist:f.artist||card.artist,label:f.name||(n?'Back':'Front'),ill:f.illustration_id}));
+    faces.forEach(f=>tiles.push({art:f.img.art_crop,ill:f.ill||null,artist:f.artist||'',label:card.card_faces&&card.card_faces.length>1?f.label:'',set:(card.set_name||'')+(card.released_at?' · '+card.released_at.slice(0,4):'')}));
+  });
+  return tiles;
+}
+function openArtPicker(i,k){
+  const p=S.players[i],c0=p.cmds[k];if(!c0){openSheet(i);return}
+  const base=u=>(u||'').split('?')[0];
+  modal(`<h2>Choose art</h2><p class="hint">${esc(c0.name)}</p><div id="artwrap"><div class="hint">Loading artworks…</div></div>
+<button class="big" style="margin-top:14px" id="x">Cancel</button>`,c=>{
+    c.querySelector('#x').onclick=()=>{closeModal();openSheet(i)};
+    const wrap=c.querySelector('#artwrap');
+    fetchArtworks(c0.name).then(tiles=>{
+      if(!tiles.length){wrap.innerHTML='<div class="hint">No artworks found.</div>';return}
+      const grid=el('div','art-grid');
+      tiles.forEach(t=>{
+        const b=el('button','art-tile'+((c0.ill&&t.ill===c0.ill)||base(t.art)===base(c0.art)?' cur':''));
+        const im=el('img');im.alt='';im.loading='lazy';im.src=t.art;b.append(im);
+        if(t.label){const f=el('span','face');f.textContent=t.label;b.append(f)}
+        const sm=el('small');sm.textContent=(t.artist?t.artist+' · ':'')+t.set;b.append(sm);
+        b.onclick=()=>{c0.art=t.art;c0.ill=t.ill;c0.artist=t.artist||c0.artist;update();closeModal();openSheet(i)};   // one choice: pick a tile
+        grid.append(b);
+      });
+      wrap.innerHTML='';wrap.append(grid);
+    }).catch(()=>{wrap.innerHTML='<div class="hint">Could not reach Scryfall (offline?).</div>'});
   });
 }
 function confirmConcede(i){
@@ -757,7 +797,7 @@ function openSheet(i){
   const m=MODES[S.mode],n=S.players.length;
   let h=`<div class="head"><input value="${esc(p.name)}" maxlength="16" id="nm"><button class="close" id="cl">✕</button></div>`;
   h+='<h3>Commander</h3>';
-  p.cmds.forEach((c,k)=>{h+=`<div class="cmd-cur"><img src="${esc(c.art)}" alt=""><span>${esc(c.name)}<br><small style="color:var(--muted)">art: ${esc(c.artist||'')}</small></span><button data-rm="${k}">Remove</button></div>`});
+  p.cmds.forEach((c,k)=>{h+=`<div class="cmd-cur"><img src="${esc(c.art)}" alt=""><span>${esc(c.name)}<br><small style="color:var(--muted)">art: ${esc(c.artist||'')}</small></span><button data-art="${k}">Change art</button><button data-rm="${k}">Remove</button></div>`});
   if(p.cmds.length<2)h+=`<input class="cmd-search" id="cq" placeholder="${p.cmds.length?'Add partner / background…':'Search commander (Scryfall)…'}" autocomplete="off" autocapitalize="off"><div class="cmd-res" id="cres"></div>`;
   const ctr=(key,label,sub,val,lethal)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1">+</button></div></div>`;
   if(m.cmdr){
@@ -791,6 +831,7 @@ function openSheet(i){
   nm.onblur=()=>{restore();update()};
   const closeIt=()=>{restore();closeSheet();update()};
   sh.querySelector('#cl').onclick=closeIt;sh.querySelector('#dn').onclick=closeIt;
+  sh.querySelectorAll('[data-art]').forEach(b=>b.onclick=()=>{closeSheet();openArtPicker(i,+b.dataset.art)});
   sh.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{p.cmds.splice(+b.dataset.rm,1);update();openSheet(i)});
   let ct;const cres=sh.querySelector('#cres');
   sh.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const t=takenBy(b.dataset.c,i);if(t>=0){sh.querySelector('#cnote').textContent=S.players[t].name+' is already using that color.';return}p.color=b.dataset.c;update();openSheet(i)});
@@ -811,7 +852,7 @@ function openSheet(i){
           const img=(c.image_uris||(c.card_faces&&c.card_faces[0].image_uris)||{}).art_crop;if(!img)return;
           const b=el('button','','<img alt=""><span></span>');
           b.querySelector('img').src=img;b.querySelector('span').textContent=c.name;
-          b.onclick=()=>{p.cmds.push({name:c.name,art:img,artist:c.artist||(c.card_faces&&c.card_faces[0].artist)||''});
+          b.onclick=()=>{p.cmds.push({name:c.name,art:img,artist:c.artist||(c.card_faces&&c.card_faces[0].artist)||'',ill:c.illustration_id||(c.card_faces&&c.card_faces[0]&&c.card_faces[0].illustration_id)||null});
             if(p.textColor&&lum(p.textColor)<0.35)p.textColor=null;   // art is dark: a dark text color chosen earlier goes back to Auto (white)
             update();openSheet(i)};
           cres.append(b);
