@@ -295,7 +295,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.13.0',APP_BUILD='2026-10-24';
+const APP_VERSION='1.13.1',APP_BUILD='2026-10-24';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -607,11 +607,12 @@ function historyCsv(){
   HIST.slice().sort((a,b)=>a.startedAt-b.startedAt).forEach(g=>{
     const d=new Date(g.startedAt),date=d.toLocaleDateString('en-CA'),time=d.toTimeString().slice(0,5);
     const winner=(g.players.find(p=>p.result==='Winner')||{}).name||(g.finished?'Draw':'');
+    // rows in finish order; players without a place yet (an unfinished game) come last
     const firstKnown=g.players.some(p=>p.first===true);   // blank when nobody was recorded as going first
-    g.players.slice().sort((a,b)=>a.turn-b.turn).forEach(p=>rows.push([g.id,date,time,g.format,fmt(g.seconds),g.seconds,g.rounds,g.finished?'Finished':'Unfinished',winner,
+    g.players.slice().sort((a,b)=>(a.place===''?99:a.place)-(b.place===''?99:b.place)||a.turn-b.turn).forEach(p=>rows.push([g.id,date,time,g.format,fmt(g.seconds),g.seconds,g.rounds,g.finished?'Finished':'Unfinished',winner,
       p.name,p.turn,firstKnown?(p.first?'Yes':'No'):'',p.place,p.cmds,p.life,p.poison,p.cmdrMax,p.result,p.detail,p.outRound,p.outTime,p.safe]));
   });
-  return '\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n';
+  return '\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\n')+'\n';   // plain line feeds: Excel, Notepad and Sheets all accept them, and nothing along the way can double them up
 }
 function exportHistory(){
   if(!HIST.length)return;
