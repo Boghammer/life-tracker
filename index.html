@@ -301,7 +301,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.14.0',APP_BUILD='2026-10-29';
+const APP_VERSION='1.15.0',APP_BUILD='2026-10-29';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -383,7 +383,7 @@ function render(){
 /* why a player is out: commander damage > poison > life; a recorded cause is kept while it still applies */
 function defeatCauses(p,i){
   const c=[];
-  if(p.out)c.push(p.out.kind==='concede'?{key:'concede',type:'concede'}:p.out.kind==='lose'?{key:'lose',type:'lose',by:p.out.by}:{key:'alt',type:'alt',by:p.out.by});   // beaten by someone's alternate win
+  if(p.out)c.push(p.out.kind==='concede'?{key:'concede',type:'concede'}:p.out.kind==='draw'?{key:'draw',type:'draw'}:p.out.kind==='lose'?{key:'lose',type:'lose',by:p.out.by}:{key:'alt',type:'alt',by:p.out.by});   // beaten by someone's alternate win
   S.players.forEach((o,j)=>{
     if(p.cmdr[j]>=21)c.push({key:`c${j}a`,type:'cmdr',by:(o.cmds[0]&&o.cmds[0].name)||o.name});
     if(p.cmdrB[j]>=21)c.push({key:`c${j}b`,type:'cmdr',by:(o.cmds[1]&&o.cmds[1].name)||o.name});
@@ -479,6 +479,14 @@ function openArtPicker(i,k){
     }).catch(()=>{wrap.innerHTML='<div class="hint">Could not reach Scryfall (offline?).</div>'});
   });
 }
+function confirmDrawLoss(i){
+  const p=S.players[i];
+  modal(`<h2>${esc(p.name)} drew from an empty library?</h2><p class="hint">${esc(p.name)} loses the game right away. Life totals stay as they are.</p>
+<button class="big" style="margin-top:14px" id="yes">Yes, ${esc(p.name)} loses</button><button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
+    c.querySelector('#x').onclick=closeModal;
+    c.querySelector('#yes').onclick=()=>{record('draw'+Date.now());p.out={kind:'draw'};closeModal();update()};
+  });
+}
 function confirmConcede(i){
   const p=S.players[i];
   modal(`<h2>${esc(p.name)} concedes?</h2><p class="hint">${esc(p.name)} is eliminated right away. Life totals stay as they are.</p>
@@ -556,7 +564,7 @@ function buildRecord(finished,auto){
       const d=q.defeat;let result='In game',detail='';
       if(i===win){result='Winner';detail=S.altWin&&S.altWin.winner===i?'Alternate win: '+S.altWin.by:'Last player standing'}
       else if(dead(q)&&d){
-        result={life:'Defeated by life loss',poison:'Defeated by poison',cmdr:'Defeated by commander damage',alt:'Eliminated by alternate win',lose:'Lost the game',concede:'Conceded'}[d.type]||'Defeated';
+        result={life:'Defeated by life loss',poison:'Defeated by poison',cmdr:'Defeated by commander damage',alt:'Eliminated by alternate win',lose:'Lost the game',concede:'Conceded',draw:'Lost: empty library'}[d.type]||'Defeated';
         detail=d.type==='cmdr'||d.type==='alt'||d.type==='lose'?(d.by||''):'';
       }
       const out=dead(q)&&d;
@@ -726,6 +734,7 @@ function update(){
     st.innerHTML=!d?'':d.type==='life'?'<div class="icon">☠️</div><div class="why">Defeated</div>'
       :d.type==='poison'?'<div class="icon">🧪</div><div class="why">Poisoned</div>'
       :d.type==='concede'?'<div class="icon">🏳️</div><div class="why">Conceded</div>'
+      :d.type==='draw'?'<div class="icon">📚</div><div class="why">Empty library</div>'
       :d.type==='lose'?`<div class="why">Lost to ${esc(d.by)}!</div>`
       :`<div class="why">Defeated by ${esc(d.by)}!</div>`;
     const champ=!isDead&&aliveCount===1&&S.players.length>1;
@@ -967,7 +976,7 @@ function openSheet(i){
   h+=ctr('exp','✨ Experience','',p.exp);
   h+='<h3>Tokens</h3><div class="toggles"><button id="tm" class="'+(S.monarch===i?'on':'')+'">👑 Monarch</button><button id="ti" class="'+(S.initiative===i?'on':'')+'">🏰 Initiative</button><button id="tb" class="'+(p.blessing?'on':'')+'">🏙️ City’s Blessing</button><button id="ts" class="'+(p.speed?'on':'')+'">🏎️ Start Your Engines!</button><button id="tsafe" class="'+(p.cantLose?'on':'')+'"'+(dead(p)&&!p.cantLose?' disabled':'')+'>🛡️ Can’t lose the game</button></div>';
   if(!dead(p)&&!gameIsOver&&S.players.filter(q=>!dead(q)).length>1)
-    h+='<h3>Game result</h3><div class="toggles"><button id="winbtn">🏆 Win the game…</button><button id="losebtn"'+(p.cantLose?' disabled':'')+'>💀 Lose the game…</button><button id="concedebtn">🏳️ Concede…</button></div><p class="hint">For cards that win or lose the game outright, or when a player concedes. Life totals stay as they are.</p>'+(p.cantLose?'<p class="hint">'+esc(p.name)+' can’t lose the game while protected, so Lose the game is off. Conceding is always allowed. If the effect has ended, turn off the Can’t lose token.</p>':'');
+    h+='<h3>Game result</h3><div class="toggles"><button id="winbtn">🏆 Win the game…</button><button id="losebtn"'+(p.cantLose?' disabled':'')+'>💀 Lose the game…</button><button id="concedebtn">🏳️ Concede…</button><button id="drawbtn"'+(p.cantLose?' disabled':'')+'>📚 Drew from an empty library…</button></div><p class="hint">For cards that win or lose the game outright, when a player concedes, or when someone draws from an empty library. Life totals stay as they are.</p>'+(p.cantLose?'<p class="hint">'+esc(p.name)+' can’t lose the game while protected, so Lose the game and Drew from an empty library are off. Conceding is always allowed. If the effect has ended, turn off the Can’t lose token.</p>':'');
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
   h+='<button class="sdone" id="dn">Done</button>';
@@ -1021,6 +1030,7 @@ function openSheet(i){
   sh.querySelector('#ti').onclick=()=>{record('tok');S.initiative=S.initiative===i?null:i;update();openSheet(i)};
   sh.querySelector('#tb').onclick=()=>{record('tok');p.blessing=!p.blessing;update();openSheet(i)};
   const winBtn=sh.querySelector('#winbtn');if(winBtn)winBtn.onclick=()=>{closeSheet();openCardPicker(i,'win')};
+  const drawBtn=sh.querySelector('#drawbtn');if(drawBtn)drawBtn.onclick=()=>{closeSheet();confirmDrawLoss(i)};
   const concedeBtn=sh.querySelector('#concedebtn');if(concedeBtn)concedeBtn.onclick=()=>{closeSheet();confirmConcede(i)};
   const loseBtn=sh.querySelector('#losebtn');if(loseBtn)loseBtn.onclick=()=>{closeSheet();openCardPicker(i,'lose')};
   sh.querySelector('#tsafe').onclick=()=>{record('tok');if(p.cantLose)endSafe(p);else if(!dead(p))startSafe(p);update();openSheet(i)};   // off with a limit passed = eliminated now
@@ -1191,7 +1201,7 @@ function drawSummary(cv,W){
       let txt=` (${cm})`;while(cm.length>1&&c.measureText(txt).width>room){cm=cm.slice(0,-2);txt=` (${cm}…)`}
       c.fillText(txt,nx+hw,y+10*u);
     }
-    const d=q.defeat,out=i===win?'Winner!':!d?'':d.type==='life'?'Defeated':d.type==='poison'?'Poisoned':d.type==='concede'?'Conceded':d.type==='lose'?`Lost to ${d.by}!`:`Defeated by ${d.by}!`;
+    const d=q.defeat,out=i===win?'Winner!':!d?'':d.type==='life'?'Defeated':d.type==='poison'?'Poisoned':d.type==='concede'?'Conceded':d.type==='draw'?'Drew from an empty library':d.type==='lose'?`Lost to ${d.by}!`:`Defeated by ${d.by}!`;
     let sub=out&&d&&i!==win&&q.defeatT!=null?`${out} at ${fmt(q.defeatT)}${roundAt(q.defeatT)?` · R${roundAt(q.defeatT)}`:''}`:out;
     if((q.safeSpans||[]).length){   // when this player couldn't lose
       const label=tt=>roundAt(tt)?`R${roundAt(tt)}`:fmt(tt);
