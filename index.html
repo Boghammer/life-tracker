@@ -153,6 +153,12 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 .monarch-ghost{position:fixed;z-index:70;pointer-events:none;transform:translate(-50%,-50%) scale(1.2);font-size:46px;line-height:1;filter:drop-shadow(0 6px 10px rgba(0,0,0,.6))}
 .panel.drop{box-shadow:inset 0 0 0 6px var(--accent),inset 0 0 40px 10px rgba(251,191,36,.55);z-index:5}
 .gear{position:absolute;bottom:4px;right:4px;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.35);font-size:18px;z-index:3}
+/* iPad-sized screens (touch, and both sides at least 700px): a bit bigger; phones keep the 38px buttons */
+body.tablet .gear,body.tablet .cbtn{width:54px;height:54px;font-size:26px}
+body.tablet .gear{bottom:6px;right:6px}
+body.tablet .cbtn{bottom:66px;right:6px}
+body.tablet .cdmg{right:70px}
+body.tablet .badges{right:70px}
 .status{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 10px;text-align:center;z-index:5;pointer-events:none}
 .status .icon{font-size:min(30vw,26vh);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
 .panel.n5 .status .icon,.panel.n6 .status .icon{font-size:min(22vw,18vh)}
@@ -295,7 +301,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.13.2',APP_BUILD='2026-10-29';
+const APP_VERSION='1.14.0',APP_BUILD='2026-10-29';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1282,7 +1288,13 @@ function computeRot(){
   a=((a%360)+360)%360;
   return a===90?-90:a===270?90:0;   // turn the board opposite to the phone so it stays fixed to the phone
 }
+function isTablet(){
+  const q=new URLSearchParams(location.search).get('tablet');   // ?tablet=1 / ?tablet=0 forces it (for testing)
+  if(q!==null)return q==='1';
+  return matchMedia('(pointer: coarse)').matches&&Math.min(innerWidth,innerHeight)>=700;
+}
 function applyRotation(){
+  document.body.classList.toggle('tablet',isTablet());
   ROT=computeRot();const stage=$('stage');
   document.body.classList.toggle('rot',ROT!==0);
   if(ROT===0)stage.style.cssText='';
