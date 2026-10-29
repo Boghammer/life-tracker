@@ -173,6 +173,8 @@ body.tablet .badges{right:70px}
 #bar{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);touch-action:none;z-index:20;display:flex;align-items:center;gap:4px;background:rgba(15,17,21,.92);border:1px solid #333;border-radius:999px;padding:4px 6px;box-shadow:0 4px 20px rgba(0,0,0,.5)}
 #bar button{width:40px;height:42px;border-radius:50%;font-size:20px}
 #bar button:disabled{opacity:.3;cursor:default}
+#bar #bBracket{width:auto;min-width:38px;padding:0 8px;border-radius:21px;background:#262a33;color:#93c5fd;font-size:14px;font-weight:800}
+#bar #bBracket[hidden]{display:none}
 #bar #bRound{width:auto;min-width:44px;padding:0 10px;border-radius:21px;background:#262a33;color:#fbbf24;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
 #bar #bRound:active{background:#3b4150}
 #bar button:disabled:active{background:none}
@@ -290,6 +292,7 @@ body.tablet .badges{right:70px}
   <button id="bUndo" title="Undo" disabled>↶</button>
   <button id="bRedo" title="Redo" disabled>↷</button>
   <button id="bRound" title="Start the next round">R0</button>
+  <button id="bBracket" title="Commander bracket - tap to change" hidden>B?</button>
   <button id="bGraph" title="Game summary graph" hidden>📊</button>
   <div id="timer">0:00</div>
   <button id="bPause" title="Pause timer">⏸</button>
@@ -301,7 +304,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.15.0',APP_BUILD='2026-10-29';
+const APP_VERSION='1.16.0',APP_BUILD='2026-10-29';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -315,7 +318,7 @@ const KEY='mtg-life-v1';
 let S=load();
 function fresh(n,mode){
   const m=MODES[mode];
-  return{n,mode,start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:1,rounds:[{n:1,t:0}],first:null,gameId:Date.now().toString(36)+Math.random().toString(36).slice(2,6),startedAt:Date.now(),
+  return{n,mode,start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:1,rounds:[{n:1,t:0}],first:null,bracket:null,gameId:Date.now().toString(36)+Math.random().toString(36).slice(2,6),startedAt:Date.now(),
     players:Array.from({length:n},(_,i)=>({name:'Player '+(i+1),defName:'Player '+(i+1),life:m.life,poison:0,energy:0,exp:0,cmdr:Array(n).fill(0),cmdrB:Array(n).fill(0),cmds:[],log:[]}))};
 }
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players){
@@ -532,13 +535,13 @@ function persistHistory(){
 }
 /* just enough of the game to redraw its summary image later: life changes with times, rounds, eliminations, can't-lose stretches */
 function compactSnapshot(){
-  return {mode:S.mode,elapsed:S.elapsed,round:S.round||0,rounds:S.rounds||[],altWin:S.altWin||null,first:S.first==null?null:S.first,
+  return {mode:S.mode,bracket:S.bracket||null,elapsed:S.elapsed,round:S.round||0,rounds:S.rounds||[],altWin:S.altWin||null,first:S.first==null?null:S.first,
     players:S.players.map(q=>({name:q.name,color:q.color||null,cmds:q.cmds.map(x=>x.name),life:q.life,poison:q.poison,cmdr:q.cmdr,cmdrB:q.cmdrB,
       out:q.out||null,cantLose:!!q.cantLose,safeSpans:(q.safeSpans||[]).map(x=>({from:x.from,to:x.to})),defeat:q.defeat||null,defeatT:q.defeatT??null,
       log:q.log.map(e=>[e.t,e.life])}))};
 }
 function restoreSnapshot(sn){
-  return {mode:sn.mode,elapsed:sn.elapsed,round:sn.round,rounds:sn.rounds,altWin:sn.altWin,first:sn.first,
+  return {mode:sn.mode,bracket:sn.bracket||null,elapsed:sn.elapsed,round:sn.round,rounds:sn.rounds,altWin:sn.altWin,first:sn.first,
     players:sn.players.map(q=>({name:q.name,color:q.color||undefined,cmds:q.cmds.map(n=>({name:n})),life:q.life,poison:q.poison,energy:0,exp:0,cmdr:q.cmdr,cmdrB:q.cmdrB,
       out:q.out||undefined,cantLose:q.cantLose,safeSpans:q.safeSpans,defeat:q.defeat||undefined,defeatT:q.defeatT==null?undefined:q.defeatT,
       log:q.log.map(a=>({t:a[0],life:a[1]}))}))};
@@ -558,7 +561,7 @@ function buildRecord(finished,auto){
   const turn=turnOrder(),turnPos={};turn.forEach((pi,k)=>{turnPos[pi]=k+1});
   const alive=S.players.map((q,i)=>i).filter(i=>!dead(S.players[i])),win=finished&&alive.length===1?alive[0]:null;
   const lab=t=>roundAt(t)?'R'+roundAt(t):fmt(t);
-  return {id:S.gameId,startedAt:S.startedAt,finished,auto,format:MODES[S.mode].label,seconds:S.elapsed,rounds:S.round||0,sn:compactSnapshot(),
+  return {id:S.gameId,startedAt:S.startedAt,finished,auto,format:MODES[S.mode].label,bracket:S.bracket||'',seconds:S.elapsed,rounds:S.round||0,sn:compactSnapshot(),
     altWin:S.altWin?S.altWin.by:'',
     players:S.players.map((q,i)=>{
       const d=q.defeat;let result='In game',detail='';
@@ -616,14 +619,14 @@ function askSaveThen(next){
 }
 const csvCell=v=>{v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
 function historyCsv(){
-  const head=['game_id','date','start_time','format','game_length','game_length_seconds','rounds','status','winner','player','turn_order','went_first','place','commander','final_life','final_poison','max_commander_damage_taken','result','detail','eliminated_round','eliminated_time','cant_lose'];
+  const head=['game_id','date','start_time','format','bracket','game_length','game_length_seconds','rounds','status','winner','player','turn_order','went_first','place','commander','final_life','final_poison','max_commander_damage_taken','result','detail','eliminated_round','eliminated_time','cant_lose'];
   const rows=[head];
   HIST.slice().sort((a,b)=>a.startedAt-b.startedAt).forEach(g=>{
     const d=new Date(g.startedAt),date=d.toLocaleDateString('en-CA'),time=d.toTimeString().slice(0,5);
     const winner=(g.players.find(p=>p.result==='Winner')||{}).name||(g.finished?'Draw':'');
     // rows in finish order; players without a place yet (an unfinished game) come last
     const firstKnown=g.players.some(p=>p.first===true);   // blank when nobody was recorded as going first
-    g.players.slice().sort((a,b)=>(a.place===''?99:a.place)-(b.place===''?99:b.place)||a.turn-b.turn).forEach(p=>rows.push([g.id,date,time,g.format,fmt(g.seconds),g.seconds,g.rounds,g.finished?'Finished':'Unfinished',winner,
+    g.players.slice().sort((a,b)=>(a.place===''?99:a.place)-(b.place===''?99:b.place)||a.turn-b.turn).forEach(p=>rows.push([g.id,date,time,g.format,g.bracket||'',fmt(g.seconds),g.seconds,g.rounds,g.finished?'Finished':'Unfinished',winner,
       p.name,p.turn,firstKnown?(p.first?'Yes':'No'):'',p.place,p.cmds,p.life,p.poison,p.cmdrMax,p.result,p.detail,p.outRound,p.outTime,p.safe]));
   });
   return '\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\n')+'\n';   // plain line feeds: Excel, Notepad and Sheets all accept them, and nothing along the way can double them up
@@ -798,7 +801,7 @@ function update(){
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
   const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
-  const wasOver=gameIsOver;gameIsOver=over;$('bGraph').hidden=!over;syncRound();
+  const wasOver=gameIsOver;gameIsOver=over;$('bGraph').hidden=!over;syncRound();syncBracket();
   if(over){
     if(S.elapsed>=SHORT_GAME)saveGameRecord(true);
     else if(S.saveAnswered==='saved')saveGameRecord(true,true);   // a short game you chose to keep stays current (e.g. after fixing a tie)
@@ -1102,7 +1105,7 @@ function drawSummary(cv,W){
   c.fillStyle='#0f1115';c.fillRect(0,0,W,H);c.textBaseline='alphabetic';c.textAlign='left';
   const alive=S.players.map((q,i)=>i).filter(i=>!dead(S.players[i])),win=n>1&&alive.length===1?alive[0]:null;
   c.fillStyle='#f3f4f6';c.font=F(20,800);c.fillText('Game summary',16*u,32*u);
-  c.fillStyle='#9aa0ab';c.font=F(11);c.fillText(`${MODES[S.mode].label} · ${n} players · ${fmt(S.elapsed)}${S.round?` · ${S.round} round${S.round>1?'s':''}`:''} · ${new Date().toLocaleDateString()}`,16*u,50*u);
+  c.fillStyle='#9aa0ab';c.font=F(11);c.fillText(`${MODES[S.mode].label}${S.bracket?` · Bracket ${S.bracket}`:''} · ${n} players · ${fmt(S.elapsed)}${S.round?` · ${S.round} round${S.round>1?'s':''}`:''} · ${new Date().toLocaleDateString()}`,16*u,50*u);
   c.font=F(15,800);c.fillStyle=win!=null?'#fbbf24':'#9aa0ab';
   let head=win!=null?`🏆 ${S.players[win].name} wins${S.altWin&&S.altWin.winner===win?` with ${S.altWin.by}`:''}`:(alive.length===0?'Draw — nobody left standing':'Game in progress');
   while(head.length>3&&c.measureText(head).width>W-32*u)head=head.slice(0,-2)+'…';
@@ -1260,16 +1263,34 @@ $('bMenu').onclick=()=>{
     const pick=(sel,attr,fn)=>c.querySelectorAll(sel).forEach(b=>b.onclick=()=>{c.querySelectorAll(sel).forEach(y=>y.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr])});
     pick('[data-m]','m',v=>mode=v);pick('[data-n]','n',v=>n=+v);
     c.querySelector('#hist').onclick=openHistory;
-    c.querySelector('#go').onclick=()=>askSaveThen(()=>{S=fresh(n,mode);startedNewGame();wake()});
-    c.querySelector('#same').onclick=()=>askSaveThen(()=>{
-      const old=S;S=fresh(old.players.length,old.mode);
+    c.querySelector('#go').onclick=()=>askSaveThen(()=>askBracket(mode,null,b=>{S=fresh(n,mode);S.bracket=b;startedNewGame();wake()}));
+    c.querySelector('#same').onclick=()=>askSaveThen(()=>askBracket(S.mode,S.bracket,b=>{
+      const old=S;S=fresh(old.players.length,old.mode);S.bracket=b;
       S.players.forEach((p,k)=>{const o=old.players[k];p.name=o.name;p.defName=o.defName||('Player '+(k+1));p.cmds=o.cmds||[];if(o.color)p.color=o.color;if(o.textColor)p.textColor=o.textColor});
       startedNewGame();wake();
-    });
+    }));
     c.querySelector('#x').onclick=closeModal;
   });
 };
 /* round counter: one shared button in the bar; whoever keeps track taps it when their turn begins */
+/* Commander bracket (1-5): asked when a Commander game starts, shown in the bar, and carried into the summary image and CSV */
+const BRACKETS={1:'Exhibition',2:'Core',3:'Upgraded',4:'Optimized',5:'cEDH'};
+function syncBracket(){
+  const b=$('bBracket');b.hidden=S.mode!=='commander';
+  b.textContent=S.bracket?'B'+S.bracket:'B?';
+  b.title=S.bracket?`Bracket ${S.bracket} (${BRACKETS[S.bracket]}) - tap to change`:'Commander bracket not set - tap to set';
+}
+function askBracket(mode,prev,done,isChange){
+  if(mode!=='commander'){done(null);return}
+  modal(`<h2>${isChange?'Change the bracket':'Which bracket is this game?'}</h2><p class="hint">Commander Bracket 1 to 5. Agree on it before you start.</p>
+<div style="margin-top:8px">${[1,2,3,4,5].map(b=>`<button class="big" data-b="${b}" style="margin-top:8px${prev===b?';outline:2px solid var(--accent)':''}">${b} · ${BRACKETS[b]}</button>`).join('')}</div>
+<button class="big" style="margin-top:14px" id="skip">${isChange?'No bracket':'Skip'}</button><button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
+    c.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>done(+b.dataset.b));
+    c.querySelector('#skip').onclick=()=>done(null);
+    c.querySelector('#x').onclick=closeModal;
+  });
+}
+$('bBracket').onclick=()=>askBracket('commander',S.bracket,b=>{S.bracket=b;closeModal();update()},true);
 function syncRound(){
   const b=$('bRound'),r=S.round||0;
   b.textContent='R'+r;b.title='Round '+r+' - tap to start round '+(r+1);b.disabled=gameIsOver;
