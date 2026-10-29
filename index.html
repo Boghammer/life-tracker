@@ -295,7 +295,7 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.13.1',APP_BUILD='2026-10-24';
+const APP_VERSION='1.13.2',APP_BUILD='2026-10-29';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -414,7 +414,7 @@ async function fetchCards(text,base,limit=12){
 function openCardPicker(i,mode){
   const p=S.players[i],cfg=CARD_PICKER[mode];let timer,seq=0;
   modal(`<h2>${cfg.title(esc(p.name))}</h2><p class="hint">${cfg.hint}</p>
-<input class="cmd-search" id="wq" placeholder="${cfg.ph}" autocomplete="off" autocapitalize="off" style="margin-top:8px"><div class="cmd-res" id="wres"></div>
+<input class="cmd-search" id="wq" placeholder="${cfg.ph}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search" style="margin-top:8px"><div class="cmd-res" id="wres"></div>
 <button class="big" style="margin-top:14px" id="x">Cancel</button>`,c=>{
     const res=c.querySelector('#wres');
     const show=async text=>{
@@ -853,7 +853,7 @@ function tryFocusExact(){
 function startNameEdit(i){
   const P=panels[i].P,p=S.players[i],def=defaultName(p,i);
   if(P.querySelector('.nameedit'))return;
-  const inp=el('input','nameedit');inp.type='text';inp.maxLength=16;inp.placeholder=def;inp.autocomplete='off';inp.setAttribute('aria-label','Player name');
+  const inp=el('input','nameedit');inp.type='text';inp.maxLength=16;inp.placeholder=def;inp.autocomplete='off';inp.setAttribute('autocorrect','off');inp.spellcheck=false;inp.setAttribute('aria-label','Player name');
   let finished=false;
   const finish=apply=>{
     if(finished)return;finished=true;
@@ -939,10 +939,10 @@ function openSheet(i){
   old?.remove();sheetFor=i;
   const sh=el('div','sheet full');
   const m=MODES[S.mode],n=S.players.length;
-  let h=`<div class="head"><input value="${esc(p.name)}" maxlength="16" id="nm"><button class="close" id="cl">✕</button></div>`;
+  let h=`<div class="head"><input value="${esc(p.name)}" maxlength="16" id="nm" autocorrect="off" spellcheck="false" autocomplete="off"><button class="close" id="cl">✕</button></div>`;
   h+='<h3>Commander</h3>';
   p.cmds.forEach((c,k)=>{h+=`<div class="cmd-cur"><img src="${esc(c.art)}" alt=""><span>${esc(c.name)}<br><small style="color:var(--muted)">art: ${esc(c.artist||'')}</small></span><button data-art="${k}">Change art</button><button data-rm="${k}">Remove</button></div>`});
-  if(p.cmds.length<2)h+=`<input class="cmd-search" id="cq" placeholder="${p.cmds.length?'Add partner / background…':'Search commander (Scryfall)…'}" autocomplete="off" autocapitalize="off"><div class="cmd-res" id="cres"></div>`;
+  if(p.cmds.length<2)h+=`<input class="cmd-search" id="cq" placeholder="${p.cmds.length?'Add partner / background…':'Search commander (Scryfall)…'}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search"><div class="cmd-res" id="cres"></div>`;
   const ctr=(key,label,sub,val,lethal)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1">+</button></div></div>`;
   if(m.cmdr){
     h+='<h3>Commander damage received</h3>';
