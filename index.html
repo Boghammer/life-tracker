@@ -304,10 +304,11 @@ body.tablet .badges{right:70px}
 <div id="pickguard"></div>
 <div id="modal"><div class="card" id="card"></div></div>
 
+<script src="qrcode.min.js"></script>
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.17.0',APP_BUILD='2026-10-29';
+const APP_VERSION='1.18.0',APP_BUILD='2026-11-06';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -643,6 +644,28 @@ function exportHistory(){
   else{const url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);done()}
 }
 let histFilter='all';   // 'all' or a bracket number; kept while you move around the history screens
+/* Share the app: a large QR code of the address this app is running from, so anyone nearby can scan it and open it */
+function appUrl(){
+  let u=location.href.split('#')[0].split('?')[0];
+  return u.replace(/index\.html$/,'');
+}
+function openShareApp(){
+  const url=appUrl(),local=/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname)||location.hostname.endsWith('.local');
+  let svg='';
+  try{const qr=qrcode(0,'M');qr.addData(url);qr.make();svg=qr.createSvgTag({cellSize:8,margin:4,scalable:true})}catch(e){}
+  modal(`<h2>📲 Share the app</h2><p class="hint">Point a phone camera at this code and tap the link. On the page that opens, use Share, then Add to Home Screen, to install it.</p>
+<div id="qrbox" style="background:#fff;border-radius:14px;padding:6px;width:min(100%,340px);margin:12px auto 0;line-height:0">${svg||'<p style="color:#111;line-height:1.3;padding:20px">Couldn’t draw the code.</p>'}</div>
+<p class="hint" style="text-align:center;word-break:break-all;margin-top:10px;-webkit-user-select:text;user-select:text">${esc(url)}</p>
+${local?'<p class="hint" style="text-align:center;color:#fbbf24">This address only works on this device. Open the app from its web address to get a code others can use.</p>':''}
+<button class="big" style="margin-top:12px" id="sl">Share link</button><button class="big" style="margin-top:8px" id="x">Close</button>`,c=>{
+    const svgEl=c.querySelector('#qrbox svg');if(svgEl){svgEl.style.width='100%';svgEl.style.height='auto';svgEl.style.display='block'}
+    c.querySelector('#x').onclick=closeModal;
+    c.querySelector('#sl').onclick=()=>{
+      if(navigator.share)navigator.share({title:'Bog Life',url}).catch(()=>{});
+      else if(navigator.clipboard)navigator.clipboard.writeText(url).then(()=>{c.querySelector('#sl').textContent='Link copied'}).catch(()=>{});
+    };
+  });
+}
 function openHistory(){
   const last=+localStorage.getItem(LASTEXP)||0;
   const present=[1,2,3,4,5].filter(b=>HIST.some(g=>g.bracket===b));   // brackets that actually occur in the saved games
@@ -1267,12 +1290,14 @@ $('bMenu').onclick=()=>{
 <h3>Players</h3><div class="grid" id="ns">${[2,3,4,5,6].map(x=>`<button data-n="${x}" class="${x===n?'on':''}">${x}</button>`).join('')}</div>
 <button class="big" style="margin-top:18px" id="go">Start new game</button>
 <button class="big" style="margin-top:8px" id="hist">📒 Game history (${HIST.length})</button>
+<button class="big" style="margin-top:8px" id="share">📲 Share the app</button>
 <button class="big" style="margin-top:8px" id="same">New game, same players<br><small style="font-weight:500;color:var(--muted)">Keeps names, commanders and colors</small></button>
 <button class="big" style="margin-top:8px" id="x">Cancel</button>
 <p class="hint" style="text-align:center;margin-top:16px">${versionLine()}<br>Made w/ Claude Code</p>`,c=>{
     const pick=(sel,attr,fn)=>c.querySelectorAll(sel).forEach(b=>b.onclick=()=>{c.querySelectorAll(sel).forEach(y=>y.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr])});
     pick('[data-m]','m',v=>mode=v);pick('[data-n]','n',v=>n=+v);
     c.querySelector('#hist').onclick=openHistory;
+    c.querySelector('#share').onclick=openShareApp;
     c.querySelector('#go').onclick=()=>askSaveThen(()=>askBracket(mode,null,b=>{S=fresh(n,mode);S.bracket=b;startedNewGame();wake()}));
     c.querySelector('#same').onclick=()=>askSaveThen(()=>askBracket(S.mode,S.bracket,b=>{
       const old=S;S=fresh(old.players.length,old.mode);S.bracket=b;
