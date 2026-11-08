@@ -307,7 +307,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.19.2',APP_BUILD='2026-11-08';
+const APP_VERSION='1.19.3',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -668,7 +668,7 @@ ${local?'<p class="hint" style="text-align:center;color:#fbbf24">This address on
 }
 /* Share results: finished games are sent to a private Google Sheet (through an Apps Script web page). Opt-in; player names are left out unless asked for. */
 const SHEET_URL='https://script.google.com/macros/s/AKfycbytP7_iIF6m19dICxUoFS7kyZHuBqfcWi4bJfTCGIEs6RAVHw5_786k6jGVFind8iEc9Q/exec',SHEET_KEY='e411c31ec6a88f69ec29a7b0',SHARE_KEY='mtg-life-share';
-let shareCfg=(()=>{try{return {on:false,names:false,...JSON.parse(localStorage.getItem(SHARE_KEY))}}catch(e){return{on:false,names:false}}})();
+let shareCfg=(()=>{try{const c={on:false,names:true,...JSON.parse(localStorage.getItem(SHARE_KEY))};if(!c.namesSet)c.names=true;return c}catch(e){return{on:false,names:true}}})();   // names are included unless the player turned them off
 const saveShareCfg=()=>{try{localStorage.setItem(SHARE_KEY,JSON.stringify(shareCfg))}catch(e){}};
 let shareBusy=false,shareMsg='';
 const waiting=()=>HIST.filter(r=>r.finished&&!r.sent);
@@ -709,7 +709,7 @@ function openShareResults(){
     c.querySelector('#snd').disabled=!SHEET_URL||!w;
   };
   modal(`<h2>📤 Share results</h2>
-<p class="hint">Help improve Bog Life by sending each finished game to the developer's private sheet: format, bracket, length, rounds, commanders, how each player did and the life-total timeline. No pictures and nothing about your device. Player names are left out (shown as Player 1, 2…) unless you turn them on.</p>
+<p class="hint">Help improve Bog Life by sending each finished game to the developer's private sheet: format, bracket, length, rounds, commanders, how each player did and the life-total timeline. No pictures and nothing about your device. Player names are included; turn that off below and they are shown as Player 1, 2… instead.</p>
 ${SHEET_URL?'':'<p class="hint" style="color:#fbbf24">Not set up yet: this copy of the app has no sheet address.</p>'}
 <button class="big" style="margin-top:12px" id="tOn"></button>
 <button class="big" style="margin-top:8px" id="tNm"></button>
@@ -718,7 +718,7 @@ ${SHEET_URL?'':'<p class="hint" style="color:#fbbf24">Not set up yet: this copy 
 <button class="big" style="margin-top:8px" id="x">Close</button>`,c=>{
     draw(c);
     c.querySelector('#tOn').onclick=()=>{shareCfg.on=!shareCfg.on;saveShareCfg();draw(c);if(shareCfg.on)syncResults(false).then(()=>draw(c))};
-    c.querySelector('#tNm').onclick=()=>{shareCfg.names=!shareCfg.names;saveShareCfg();draw(c)};
+    c.querySelector('#tNm').onclick=()=>{shareCfg.names=!shareCfg.names;shareCfg.namesSet=true;saveShareCfg();draw(c)};
     c.querySelector('#snd').onclick=async()=>{c.querySelector('#snd').disabled=true;c.querySelector('#shareStatus').textContent='Sending…';await syncResults(true);draw(c)};
     c.querySelector('#x').onclick=closeModal;
   });
