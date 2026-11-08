@@ -41,6 +41,9 @@ body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!imp
 .cmdr-ov .rows{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
 .crow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;background:#1c2029;border:1px solid #2b303b;border-radius:12px;padding:5px 6px}
 .crow .pill{flex:none;min-width:32px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.crow .oin{display:block;width:100%;box-sizing:border-box;background:#0f1115;color:#fff;border:1px solid #3b4150;border-radius:8px;padding:5px 8px;font-size:16px;margin-top:4px}
+.crow .orm{flex:none;width:30px;height:30px;border-radius:50%;background:#2b303b;color:#fff;font-size:14px}
+.cmdr-ov .addopp{flex:none;padding:12px;border-radius:12px;background:#262a33;border:1px dashed #5b6372;color:#fff;font-size:15px;font-weight:700}
 .crow .lbl small{display:block;color:var(--muted);font-size:.85em;line-height:1.15}
 .crow .stp button,.ctr .stepper button{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .crow .lbl{flex:1 1 70px;min-width:0;font-size:12px;line-height:1.15;overflow-wrap:anywhere}
@@ -138,6 +141,9 @@ button.badge.tap:active{background:rgba(0,0,0,.7)}
 .tok.hold{pointer-events:auto;cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none}
 .tok.holding{animation:holdcharge 2s linear forwards}
 @keyframes holdcharge{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(94,234,212,0)}100%{transform:scale(1.45);box-shadow:0 0 22px 8px rgba(94,234,212,.85)}}
+.crownbtn.hold{cursor:pointer;-webkit-user-select:none;user-select:none}
+.crownbtn.holding{animation:holdcharge 2s linear forwards}
+.crownbtn.popping{pointer-events:none;animation:tokpop .43s ease-out forwards}
 .tok.popping{pointer-events:none;animation:tokpop .43s ease-out forwards}
 @keyframes tokpop{0%{transform:scale(1.45);opacity:1}35%{transform:scale(2.1);opacity:1;box-shadow:0 0 30px 14px rgba(94,234,212,.9)}100%{transform:scale(3.2);opacity:0}}
 .panel.safe{box-shadow:inset 0 0 0 4px #5eead4,inset 0 0 26px 4px rgba(94,234,212,.45);animation:safeglow 2.6s ease-in-out infinite}
@@ -165,6 +171,8 @@ body.tablet .badges{right:70px}
 .status .icon{font-size:min(30vw,26vh);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
 .panel.n5 .status .icon,.panel.n6 .status .icon{font-size:min(22vw,18vh)}
 .status .why{font-size:min(7vw,5.5vh);font-weight:800;letter-spacing:.04em;text-shadow:0 2px 8px rgba(0,0,0,.8);color:#fff}
+.status .sumbtn{pointer-events:auto;margin-top:12px;font-size:min(20vw,14vh);line-height:1;background:rgba(0,0,0,.35);border-radius:22px;padding:6px 20px;cursor:pointer;touch-action:manipulation}
+.status .sumbtn:active{background:rgba(0,0,0,.55)}
 .status .place{margin-top:6px;font-size:min(4.2vw,3.2vh);font-weight:700;color:#fff;opacity:.92;text-shadow:0 2px 6px rgba(0,0,0,.8)}
 .status .place.tap{pointer-events:auto;cursor:pointer;touch-action:manipulation;padding:8px 14px;text-decoration:underline dotted;text-underline-offset:4px}
 .status .place.tap:active{opacity:.6}
@@ -314,11 +322,13 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.20.5',APP_BUILD='2026-11-08';
+const APP_VERSION='1.21.0',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
-const colorOf=j=>S.players[j].color||COLORS[j];
+const isSolo=()=>S.players.length===1;
+const srcs=()=>isSolo()?S.players.concat(S.opps||[]):S.players;   // who can deal commander damage: the players, plus opponents added in a solo game
+const colorOf=j=>(srcs()[j]||{}).color||COLORS[j%COLORS.length];
 const takenBy=(c,i)=>S.players.findIndex((o,j)=>j!==i&&colorOf(j).toLowerCase()===c.toLowerCase());
 const TEXT_SWATCHES=['#ffffff','#111111','#fde68a','#fca5a5','#86efac','#93c5fd'];   // text colors may be shared by any panels
 const lum=c=>{const n=parseInt(c.slice(1),16);return (0.299*(n>>16)+0.587*(n>>8&255)+0.114*(n&255))/255};
@@ -328,9 +338,10 @@ const KEY='mtg-life-v1';
 let S=load();
 function fresh(n,mode){
   const m=MODES[mode];
-  return{n,mode,start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:1,rounds:[{n:1,t:0}],first:null,bracket:null,gameId:Date.now().toString(36)+Math.random().toString(36).slice(2,6),startedAt:Date.now(),
+  return{n,mode,opps:[],start:m.life,elapsed:0,paused:false,monarch:null,initiative:null,round:1,rounds:[{n:1,t:0}],first:null,bracket:null,gameId:Date.now().toString(36)+Math.random().toString(36).slice(2,6),startedAt:Date.now(),
     players:Array.from({length:n},(_,i)=>({name:'Player '+(i+1),defName:'Player '+(i+1),life:m.life,poison:0,energy:0,exp:0,cmdr:Array(n).fill(0),cmdrB:Array(n).fill(0),cmds:[],log:[]}))};
 }
+const makeOpp=name=>({name,cmds:[],life:1,poison:0,cmdr:[],cmdrB:[],log:[]});   // an opponent in a solo game: only here to deal commander damage
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players){
     s.players.forEach(p=>{if(!p.cmds)p.cmds=p.cmdrName?[{name:p.cmdrName,art:p.art,artist:p.artist||''}]:[];if(!p.cmdrB)p.cmdrB=Array(s.players.length).fill(0)});return s}}catch(e){}return fresh(4,'commander')}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
@@ -357,7 +368,8 @@ function render(){
       const screenSide=k<(m-1)/2?'right':k>(m-1)/2?'left':'right';   // the side facing the middle of the table
       P.dataset.crown=inTop?(screenSide==='right'?'left':'right'):screenSide;P.dataset.crownN=P.dataset.crown;
       const cr=el('div','crownbtn','👑');cr.title='Monarch - drag to another player';cr.hidden=true;
-      cr.addEventListener('pointerdown',e=>{if(S.monarch===i)startTokenDrag(e,i,cr,'monarch','👑')});
+      if(n===1){cr.title='Monarch - press and hold for 2 seconds to remove';holdPop(cr,()=>{record('tok');S.monarch=null;update()})}   // solo: nobody to pass it to
+      else cr.addEventListener('pointerdown',e=>{if(S.monarch===i)startTokenDrag(e,i,cr,'monarch','👑')});
       P.append(cr);
       P.append(el('div','tokcol'));
     }
@@ -397,7 +409,7 @@ function render(){
 function defeatCauses(p,i){
   const c=[];
   if(p.out)c.push(p.out.kind==='concede'?{key:'concede',type:'concede'}:p.out.kind==='draw'?{key:'draw',type:'draw'}:p.out.kind==='lose'?{key:'lose',type:'lose',by:p.out.by}:{key:'alt',type:'alt',by:p.out.by});   // beaten by someone's alternate win
-  S.players.forEach((o,j)=>{
+  srcs().forEach((o,j)=>{
     if(p.cmdr[j]>=21)c.push({key:`c${j}a`,type:'cmdr',by:(o.cmds[0]&&o.cmds[0].name)||o.name});
     if(p.cmdrB[j]>=21)c.push({key:`c${j}b`,type:'cmdr',by:(o.cmds[1]&&o.cmds[1].name)||o.name});
   });
@@ -492,6 +504,15 @@ function openArtPicker(i,k){
     }).catch(()=>{wrap.innerHTML='<div class="hint">Could not reach Scryfall (offline?).</div>'});
   });
 }
+/* solo game: winning needs no card */
+function confirmSoloWin(i){
+  const p=S.players[i];
+  modal(`<h2>${esc(p.name)} wins the game?</h2><p class="hint">The game ends as a win. You can still undo it afterwards.</p>
+<button class="big" style="margin-top:14px" id="yes">Yes, I won</button><button class="big" style="margin-top:8px" id="x">Cancel</button>`,c=>{
+    c.querySelector('#x').onclick=closeModal;
+    c.querySelector('#yes').onclick=()=>{record('altwin'+Date.now());S.altWin={by:'Won the game',winner:i,t:S.elapsed,solo:true};closeModal();update()};
+  });
+}
 function confirmDrawLoss(i){
   const p=S.players[i];
   modal(`<h2>${esc(p.name)} drew from an empty library?</h2><p class="hint">${esc(p.name)} loses the game right away. Life totals stay as they are.</p>
@@ -565,23 +586,23 @@ function openSavedSummary(id){
   }
   const keep=S,cv=document.createElement('canvas');
   S=restoreSnapshot(g.sn);try{drawSummary(cv,1080)}finally{S=keep}   // the drawing code reads the current game, so point it at the saved one just for this call
-  showSummaryModal(cv,'Back',openHistory,'bog-life-'+new Date(g.startedAt).toLocaleDateString('en-CA')+'.png');
+  showSummaryModal(cv,'Back',openHistory,'bog-life-'+new Date(g.startedAt).toLocaleDateString('en-CA')+'.png',g.players.length===1);
 }
 function buildRecord(finished,auto){
   const turn=turnOrder(),turnPos={};turn.forEach((pi,k)=>{turnPos[pi]=k+1});
   const alive=S.players.map((q,i)=>i).filter(i=>!dead(S.players[i])),win=finished&&alive.length===1?alive[0]:null;
   const lab=t=>roundAt(t)?'R'+roundAt(t):fmt(t);
-  return {id:S.gameId,startedAt:S.startedAt,finished,auto,format:MODES[S.mode].label,bracket:S.bracket||'',seconds:S.elapsed,rounds:S.round||0,sn:compactSnapshot(),
+  return {id:S.gameId,startedAt:S.startedAt,finished,auto,solo:S.players.length===1,format:MODES[S.mode].label+(S.players.length===1?' (Solo)':''),bracket:S.bracket||'',seconds:S.elapsed,rounds:S.round||0,sn:compactSnapshot(),
     altWin:S.altWin?S.altWin.by:'',
     players:S.players.map((q,i)=>{
       const d=q.defeat;let result='In game',detail='';
-      if(i===win){result='Winner';detail=S.altWin&&S.altWin.winner===i?'Alternate win: '+S.altWin.by:'Last player standing'}
+      if(i===win){result='Winner';detail=S.altWin&&S.altWin.solo?'Won the game':S.altWin&&S.altWin.winner===i?'Alternate win: '+S.altWin.by:'Last player standing'}
       else if(dead(q)&&d){
         result={life:'Defeated by life loss',poison:'Defeated by poison',cmdr:'Defeated by commander damage',alt:'Eliminated by alternate win',lose:'Lost the game',concede:'Conceded',draw:'Lost: empty library'}[d.type]||'Defeated';
         detail=d.type==='cmdr'||d.type==='alt'||d.type==='lose'?(d.by||''):'';
       }
       const out=dead(q)&&d;
-      return {name:q.name,turn:turnPos[i],first:S.first===i,place:(out||i===win)?placeOf(i):'',cmds:q.cmds.map(x=>x.name).join(' & '),
+      return {name:q.name,turn:turnPos[i],first:S.first===i,place:S.players.length>1&&(out||i===win)?placeOf(i):'',cmds:q.cmds.map(x=>x.name).join(' & '),
         life:q.life,poison:q.poison,cmdrMax:Math.max(0,...q.cmdr,...q.cmdrB),result,detail,
         outRound:out&&q.defeatT!=null?(roundAt(q.defeatT)||''):'',outTime:out&&q.defeatT!=null?fmt(q.defeatT):'',
         safe:(q.safeSpans||[]).map(sp=>sp.to==null?lab(sp.from)+'-end':(lab(sp.from)===lab(sp.to)?lab(sp.from):lab(sp.from)+'-'+lab(sp.to))).join(', ')};
@@ -634,7 +655,7 @@ function historyCsv(){
   const rows=[head];
   HIST.slice().sort((a,b)=>a.startedAt-b.startedAt).forEach(g=>{
     const d=new Date(g.startedAt),date=d.toLocaleDateString('en-CA'),time=d.toTimeString().slice(0,5);
-    const winner=(g.players.find(p=>p.result==='Winner')||{}).name||(g.finished?'Draw':'');
+    const winner=(g.players.find(p=>p.result==='Winner')||{}).name||(g.finished&&g.players.length>1?'Draw':'');
     // rows in finish order; players without a place yet (an unfinished game) come last
     const firstKnown=g.players.some(p=>p.first===true);   // blank when nobody was recorded as going first
     g.players.slice().sort((a,b)=>(a.place===''?99:a.place)-(b.place===''?99:b.place)||a.turn-b.turn).forEach(p=>rows.push([g.id,date,time,g.format,g.bracket||'',fmt(g.seconds),g.seconds,g.rounds,g.finished?'Finished':'Unfinished',winner,
@@ -678,7 +699,7 @@ const SHEET_URL='https://script.google.com/macros/s/AKfycbytP7_iIF6m19dICxUoFS7k
 let shareCfg=(()=>{try{const c={on:false,names:true,...JSON.parse(localStorage.getItem(SHARE_KEY))};if(!c.namesSet)c.names=true;return c}catch(e){return{on:false,names:true}}})();   // names are included unless the player turned them off
 const saveShareCfg=()=>{try{localStorage.setItem(SHARE_KEY,JSON.stringify(shareCfg))}catch(e){}};
 let shareBusy=false,shareMsg='';
-const waiting=()=>HIST.filter(r=>r.finished&&!r.sent);
+const waiting=()=>HIST.filter(r=>r.finished&&!r.sent&&!r.solo);   // solo games are never shared
 function payloadFor(rec,names){
   const nm={};rec.players.forEach(q=>{nm[q.name]=names?q.name:'Player '+q.turn});
   const scrub=t=>{t=String(t||'');if(!names)Object.keys(nm).forEach(n=>{if(n)t=t.split(n).join(nm[n])});return t};
@@ -716,7 +737,7 @@ function openShareResults(onClose){
     c.querySelector('#snd').disabled=!SHEET_URL||!w;
   };
   modal(`<h2>📤 Share results</h2>
-<p class="hint">Help improve Bog Life by sending each finished game to the developer's private sheet: format, bracket, length, rounds, commanders, how each player did and the life-total timeline. No pictures and nothing about your device. Player names are included; turn that off below and they are shown as Player 1, 2… instead.</p>
+<p class="hint">Help improve Bog Life by sending each finished game to the developer's private sheet: format, bracket, length, rounds, commanders, how each player did and the life-total timeline. No pictures and nothing about your device. Player names are included; turn that off below and they are shown as Player 1, 2… instead. Solo games are never sent.</p>
 ${SHEET_URL?'':'<p class="hint" style="color:#fbbf24">Not set up yet: this copy of the app has no sheet address.</p>'}
 <button class="big" style="margin-top:12px" id="tOn"></button>
 <button class="big" style="margin-top:8px" id="tNm"></button>
@@ -770,7 +791,7 @@ function openHistory(){
   const shown=HIST.filter(g=>histFilter==='all'||g.bracket===histFilter);
   const rows=shown.slice().sort((a,b)=>b.startedAt-a.startedAt).map(g=>{
     const d=new Date(g.startedAt),w=g.players.find(p=>p.result==='Winner');
-    return `<div class="hrow"><div class="t" data-open="${esc(g.id)}" style="cursor:pointer"><b>${esc(d.toLocaleDateString(undefined,{month:'short',day:'numeric'}))} · ${esc(g.format)}${g.bracket?' · B'+g.bracket:''} · ${g.players.length} players · ${fmt(g.seconds)}</b><br><span style="color:var(--muted)">${g.finished?(w?'Winner: '+esc(w.name):'Draw'):'Unfinished'}</span></div><button data-del="${esc(g.id)}" title="Delete">✕</button></div>`;
+    return `<div class="hrow"><div class="t" data-open="${esc(g.id)}" style="cursor:pointer"><b>${esc(d.toLocaleDateString(undefined,{month:'short',day:'numeric'}))} · ${esc(g.format)}${g.bracket?' · B'+g.bracket:''}${g.players.length===1?'':' · '+g.players.length+' players'} · ${fmt(g.seconds)}</b><br><span style="color:var(--muted)">${g.finished?(g.players.length===1?(w?'Won':'Defeated'):w?'Winner: '+esc(w.name):'Draw'):'Unfinished'}</span></div><button data-del="${esc(g.id)}" title="Delete">✕</button></div>`;
   }).join('');
   const chips=present.length?`<div class="fchips">${['all',...present].map(f=>`<button class="fchip${f===histFilter?' on':''}" data-f="${f}">${f==='all'?'All':'B'+f}</button>`).join('')}</div>`:'';
   const count=histFilter==='all'?`${HIST.length} game${HIST.length===1?'':'s'} saved on this phone.`:`Showing ${shown.length} of ${HIST.length} games (bracket ${histFilter}).`;
@@ -826,6 +847,18 @@ function renumberByTurn(){
     q.defName=def;
   });
 }
+/* press and hold ~2s: the icon charges, then pops and is removed (done() runs once it has popped) */
+function holdPop(t,done){
+  t.classList.add('hold');
+  let timer=null,popped=false;
+  const cancel=()=>{clearTimeout(timer);timer=null;if(!popped)t.classList.remove('holding')};
+  t.addEventListener('pointerdown',e=>{
+    e.preventDefault();if(popped)return;t.classList.add('holding');
+    timer=setTimeout(()=>{popped=true;t.classList.remove('holding');t.classList.add('popping');buzz();setTimeout(()=>{done();popped=false;t.classList.remove('popping')},430)},2000);
+  });
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>t.addEventListener(ev,cancel));
+  t.addEventListener('contextmenu',e=>e.preventDefault());
+}
 const overLimit=p=>p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21);
 /* "Can't lose the game" (Platinum Angel and friends): while it's on, life/poison/commander damage can go past the usual
    limits without eliminating the player. Conceding and other "out" reasons still apply. Turning it off while a limit is
@@ -836,7 +869,7 @@ function releaseCantLose(i){const p=S.players[i];if(!p.cantLose)return;record('s
 function dead(p){return !!p.out||(!p.cantLose&&overLimit(p))}
 function update(){
   S.players.forEach((p,i)=>{
-    const {P}=panels[i];
+    const {P}=panels[i],solo=S.players.length===1;
     const nm=P.querySelector('.name');nm.textContent='';
     if(S.first===i){   // went first: gold stars either side of the name; tapping one starts the next round
       const star=()=>{const e=el('span','star','★');e.title='Went first - tap to start the next round';e.onclick=ev=>{ev.stopPropagation();nextRound()};return e};
@@ -872,13 +905,14 @@ function update(){
       :d.type==='draw'?'<div class="icon">📚</div><div class="why">Empty library</div>'
       :d.type==='lose'?`<div class="why">Lost to ${esc(d.by)}!</div>`
       :`<div class="why">Defeated by ${esc(d.by)}!</div>`;
-    const champ=!isDead&&aliveCount===1&&S.players.length>1;
+    if(solo&&d){const gb=el('button','sumbtn','📊');gb.title='Game summary graph';gb.onclick=openSummary;st.append(gb)}   // solo: the graph lives on the panel once the game is lost
+    const champ=solo?(!isDead&&!!S.altWin):(!isDead&&aliveCount===1&&S.players.length>1);
     P.classList.toggle('champ',champ);
     let cs2=P.querySelector('.sparkles.champ-sp');
     if(champ&&!cs2){const sp=makeSparkles('Winner!','champ-sp',true,isLight(colorOf(i))&&!p.cmds.length);const fb=sp.querySelector('.first');fb.title='Game summary graph';fb.insertAdjacentHTML('beforeend','<div style="font-size:2.6em;line-height:1.1;margin-top:2px">📊</div>');fb.onclick=openSummary;pcOf(P).append(sp)}
     else if(!champ&&cs2)cs2.remove();
     const cd=P.querySelector('.cdmg');cd.innerHTML='';
-    if(MODES[S.mode].cmdr)S.players.forEach((o,j)=>{
+    if(MODES[S.mode].cmdr)srcs().forEach((o,j)=>{
       [['c',p.cmdr,0],...(o.cmds.length>1?[['d',p.cmdrB,1]]:[])].forEach(([pre,arr,k])=>{
         if(!arr[j])return;  // hidden until this commander has dealt damage (add the first point from the ☰ menu)
         const c=el('button','chip'+(arr[j]>=21?' lethal':''),`<i style="background:${colorOf(j)}"></i><span>${arr[j]}</span>`+(o.cmds.length>1?`<small>${k?'B':'A'}</small>`:'')+(j===i?'<small>you</small>':''));
@@ -901,17 +935,13 @@ function update(){
         t.onclick=()=>{if(p.speed<4){record('speed'+i);p.speed++;buzz();update()}};
       }
       if(title==='Can’t lose the game'){   // hold ~2s: it charges, then pops and goes away
-        t.classList.add('hold');t.title='Can’t lose the game - press and hold for 2 seconds to remove';
-        let timer=null,popped=false;
-        const cancel=()=>{clearTimeout(timer);timer=null;if(!popped)t.classList.remove('holding')};
-        t.addEventListener('pointerdown',e=>{
-          e.preventDefault();if(popped)return;t.classList.add('holding');
-          timer=setTimeout(()=>{popped=true;t.classList.remove('holding');t.classList.add('popping');buzz();setTimeout(()=>releaseCantLose(i),430)},2000);
-        });
-        ['pointerup','pointerleave','pointercancel'].forEach(ev=>t.addEventListener(ev,cancel));
-        t.addEventListener('contextmenu',e=>e.preventDefault());
+        t.title='Can’t lose the game - press and hold for 2 seconds to remove';
+        holdPop(t,()=>releaseCantLose(i));
       }
-      if(title==='Initiative'){t.classList.add('drag');t.title='Initiative - drag to another player';t.addEventListener('pointerdown',e=>{if(S.initiative===i)startTokenDrag(e,i,t,'initiative','🏰')})}
+      if(title==='Initiative'){
+        if(solo){t.title='Initiative - press and hold for 2 seconds to remove';holdPop(t,()=>{record('tok');S.initiative=null;update()})}   // nobody to pass it to
+        else{t.classList.add('drag');t.title='Initiative - drag to another player';t.addEventListener('pointerdown',e=>{if(S.initiative===i)startTokenDrag(e,i,t,'initiative','🏰')})}
+      }
       tc.append(t);
     });
     // once a counter has started, tapping its badge adds one (lowering it is done from the player's menu)
@@ -925,14 +955,14 @@ function update(){
   });
   S.players.forEach((p,i)=>{
     const st=panels[i].P.querySelector('.status');st.querySelector('.place')?.remove();
-    if(p.defeat){
+    if(p.defeat&&S.players.length>1){
       const can=p.defeatT0!=null||!!tieInfo(i),d=el('div','place'+(can?' tap':''),`${placeIcon(i)} ${ordinal(placeOf(i))} place`);
       if(can){d.title=p.defeatT0!=null?'Tied - tap to undo':'Tap if you were eliminated at the same time as the player above';d.onclick=ev=>{ev.stopPropagation();openTie(i)}}
       st.append(d);
     }
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
-  const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
+  const over=S.players.length===1?(!!S.altWin||dead(S.players[0])):(S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1);
   const wasOver=gameIsOver;gameIsOver=over;syncRound();syncBracket();
   if(over){
     if(S.elapsed>=SHORT_GAME)saveGameRecord(true);
@@ -958,7 +988,9 @@ function clearHistory(){undoStack.length=0;redoStack.length=0;lastKey=null;syncH
 function syncHistoryButtons(){$('bUndo').disabled=!undoStack.length;$('bRedo').disabled=!redoStack.length}
 function restore(str){
   const d=JSON.parse(str);
-  d.pl.forEach((q,i)=>Object.assign(S.players[i],q));S.monarch=d.monarch;S.initiative=d.initiative;S.round=d.round||0;S.rounds=d.rounds||[];S.altWin=d.altWin||null;
+  d.pl.forEach((q,i)=>Object.assign(S.players[i],q));
+  {const N=srcs().length;S.players.forEach(q=>{q.cmdr=Array.from({length:N},(_,j)=>q.cmdr[j]||0);q.cmdrB=Array.from({length:N},(_,j)=>q.cmdrB[j]||0)})}
+  S.monarch=d.monarch;S.initiative=d.initiative;S.round=d.round||0;S.rounds=d.rounds||[];S.altWin=d.altWin||null;
   panels.forEach(x=>{clearTimeout(x.dt);x.delta=0;x.P.querySelector('.delta').classList.remove('show')});
   lastKey=null;update();
   if(sheetFor!=null)openSheet(sheetFor);
@@ -1026,21 +1058,43 @@ function openCmdr(i){
   const rows=ov.querySelector('.rows');
   const draw=()=>{
     rows.innerHTML='';
-    S.players.forEach((o,j)=>{
+    srcs().forEach((o,j)=>{
+      const isOpp=j>=S.players.length;
       for(let k=0;k<Math.max(1,o.cmds.length);k++){
         const key=(k?'d':'c')+j,val=(k?p.cmdrB:p.cmdr)[j];
         const row=el('div','crow'+(val>=21?' lethal':''));
         const col=colorOf(j);
         row.innerHTML='<div class="pill"></div><div class="lbl"></div><div class="stp"><button class="minus">−</button><div class="cnt"><span class="val"></span><span class="of">of 21</span></div><button class="plus">+</button></div>';
         const pill=row.querySelector('.pill');pill.textContent='P'+(j+1);pill.style.background=col;pill.style.color=isLight(col)?'#111':'#fff';
-        row.querySelector('.lbl').innerHTML='From '+(j===i?'myself ('+esc(o.name)+')':esc(o.name))+(dead(o)?' (defeated)':'')+(o.cmds[k]?'<small>'+esc(o.cmds[k].name)+'</small>':'');
+        if(isOpp){   // an opponent added for tracking: name and commander can be typed in
+          const lb=row.querySelector('.lbl');
+          lb.innerHTML='From <input class="oin" maxlength="16" placeholder="Opponent" autocomplete="off" autocorrect="off" spellcheck="false"><input class="oin" maxlength="40" placeholder="Their commander (optional)" autocomplete="off" autocorrect="off" spellcheck="false">';
+          const [ni,ci]=lb.querySelectorAll('input');ni.value=o.name;ci.value=o.cmds[0]?o.cmds[0].name:'';
+          ni.oninput=()=>{o.name=ni.value.trim()||('Opponent '+j);update()};
+          ci.oninput=()=>{const v=ci.value.trim();o.cmds=v?[{name:v}]:[];update()};
+        }else row.querySelector('.lbl').innerHTML='From '+(j===i?'myself ('+esc(o.name)+')':esc(o.name))+(dead(o)?' (defeated)':'')+(o.cmds[k]?'<small>'+esc(o.cmds[k].name)+'</small>':'');
         row.querySelector('.val').textContent=val;
         if(dead(o))row.querySelector('.plus').disabled=true;
         holdRepeat(row.querySelector('.minus'),()=>{const r=cmdrAdjust(i,key,-1);if(r)draw();return r});
         holdRepeat(row.querySelector('.plus'),()=>{const r=cmdrAdjust(i,key,1);draw();return r});
+        if(isOpp&&!p.cmdr[j]&&!p.cmdrB[j]){   // an opponent added by mistake can be taken off again while they have dealt nothing
+          const rm=el('button','orm','✕');rm.title='Remove this opponent';
+          rm.onclick=()=>{S.opps.splice(j-S.players.length,1);S.players.forEach(q=>{q.cmdr.splice(j,1);q.cmdrB.splice(j,1)});update();draw()};
+          row.append(rm);
+        }
         rows.append(row);
       }
     });
+    if(isSolo()&&srcs().length<COLORS.length){
+      const ad=el('button','addopp','＋ Add opponent');
+      ad.onclick=()=>{
+        if(!S.opps)S.opps=[];
+        S.opps.push(makeOpp('Opponent '+(S.opps.length+1)));
+        S.players.forEach(q=>{q.cmdr.push(0);q.cmdrB.push(0)});update();draw();
+        const ins=rows.querySelectorAll('.crow');const last=ins[ins.length-1];if(last)last.scrollIntoView({block:'nearest'});
+      };
+      rows.append(ad);
+    }
   };
   draw();
   ov.querySelector('.done').onclick=closeCmdr;
@@ -1092,8 +1146,8 @@ function holdRepeat(btn,step){
 function cmdrAdjust(i,k,d){
   const p=S.players[i],j=+k.slice(1),a=k[0]==='c'?p.cmdr:p.cmdrB;
   if(a[j]+d<0)return false;
-  if(d>0&&dead(S.players[j]))return false;   // a defeated player's commander can't deal more damage (taking points back off is still allowed)
-  record('cmdr'+i+k);buzz();a[j]+=d;p.life-=d;logEvent(p,'cmdr dmg from '+S.players[j].name,-d,p.life);update();return true}
+  if(d>0&&dead(srcs()[j]))return false;   // a defeated player's commander can't deal more damage (taking points back off is still allowed)
+  record('cmdr'+i+k);buzz();a[j]+=d;p.life-=d;logEvent(p,'cmdr dmg from '+srcs()[j].name,-d,p.life);update();return true}
 function logEvent(p,k,d,v){p.log.push({t:S.elapsed,d,life:v,k})}
 
 /* player settings: a full-screen view, one player at a time (kept upright: it has text fields) */
@@ -1112,7 +1166,7 @@ function openSheet(i){
   const ctr=(key,label,sub,val,lethal,noPlus)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${noPlus?'defeated · can’t deal damage':sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1"${noPlus?' disabled':''}>+</button></div></div>`;
   if(m.cmdr){
     h+='<h3>Commander damage received</h3>';
-    S.players.forEach((o,j)=>{
+    srcs().forEach((o,j)=>{
       const lbl=k=>`<span style="color:${colorOf(j)}">●</span> From ${j===i?'myself ('+esc(o.name)+')':esc(o.name)}${o.cmds[k]?'<small style="color:#cbd5e1">'+esc(o.cmds[k].name)+'</small>':''}`,sub='lethal at 21 · also reduces life';
       h+=ctr('c'+j,lbl(0),sub,p.cmdr[j],p.cmdr[j]>=21,dead(o));
       if(o.cmds.length>1)h+=ctr('d'+j,lbl(1),sub,p.cmdrB[j],p.cmdrB[j]>=21,dead(o));
@@ -1126,7 +1180,7 @@ function openSheet(i){
   h+=ctr('energy','⚡ Energy','',p.energy);
   h+=ctr('exp','✨ Experience','',p.exp);
   h+='<h3>Tokens</h3><div class="toggles"><button id="tm" class="'+(S.monarch===i?'on':'')+'">👑 Monarch</button><button id="ti" class="'+(S.initiative===i?'on':'')+'">🏰 Initiative</button><button id="tb" class="'+(p.blessing?'on':'')+'">🏙️ City’s Blessing</button><button id="ts" class="'+(p.speed?'on':'')+'">🏎️ Start Your Engines!</button><button id="tsafe" class="'+(p.cantLose?'on':'')+'"'+(dead(p)&&!p.cantLose?' disabled':'')+'>🛡️ Can’t lose the game</button></div>';
-  if(!dead(p)&&!gameIsOver&&S.players.filter(q=>!dead(q)).length>1)
+  if(!dead(p)&&!gameIsOver&&(S.players.length===1||S.players.filter(q=>!dead(q)).length>1))
     h+='<h3>Game result</h3><div class="toggles"><button id="winbtn">🏆 Win the game…</button><button id="losebtn"'+(p.cantLose?' disabled':'')+'>💀 Lose the game…</button><button id="concedebtn">🏳️ Concede…</button><button id="drawbtn"'+(p.cantLose?' disabled':'')+'>📚 Drew from an empty library…</button></div><p class="hint">For cards that win or lose the game outright, when a player concedes, or when someone draws from an empty library. Life totals stay as they are.</p>'+(p.cantLose?'<p class="hint">'+esc(p.name)+' can’t lose the game while protected, so Lose the game and Drew from an empty library are off. Conceding is always allowed. If the effect has ended, turn off the Can’t lose token.</p>':'');
   h+='<h3>Life log</h3><div class="log">'+
     (p.log.length?p.log.slice().reverse().slice(0,40).map(e=>`<div class="${e.d>0?'pos':'neg'}"><span>${fmt(e.t)} · ${e.k==='life'?'life':e.k}</span><span><b>${e.d>0?'+':''}${e.d}</b> → ${e.life}</span></div>`).join(''):'<div><span>No changes yet</span></div>')+'</div>';
@@ -1183,7 +1237,7 @@ function openSheet(i){
   sh.querySelector('#tm').onclick=()=>{record('tok');S.monarch=S.monarch===i?null:i;update();openSheet(i)};
   sh.querySelector('#ti').onclick=()=>{record('tok');S.initiative=S.initiative===i?null:i;update();openSheet(i)};
   sh.querySelector('#tb').onclick=()=>{record('tok');p.blessing=!p.blessing;update();openSheet(i)};
-  const winBtn=sh.querySelector('#winbtn');if(winBtn)winBtn.onclick=()=>{closeSheet();openCardPicker(i,'win')};
+  const winBtn=sh.querySelector('#winbtn');if(winBtn)winBtn.onclick=()=>{closeSheet();if(S.players.length===1)confirmSoloWin(i);else openCardPicker(i,'win')};
   const drawBtn=sh.querySelector('#drawbtn');if(drawBtn)drawBtn.onclick=()=>{closeSheet();confirmDrawLoss(i)};
   const concedeBtn=sh.querySelector('#concedebtn');if(concedeBtn)concedeBtn.onclick=()=>{closeSheet();confirmConcede(i)};
   const loseBtn=sh.querySelector('#losebtn');if(loseBtn)loseBtn.onclick=()=>{closeSheet();openCardPicker(i,'lose')};
@@ -1255,11 +1309,11 @@ function drawSummary(cv,W){
   const n=S.players.length,u=W/360,H=Math.round((364+28*n)*u);cv.width=W;cv.height=H;
   const c=cv.getContext('2d'),F=(sz,w)=>`${w||500} ${sz*u}px -apple-system,"Segoe UI",system-ui,sans-serif`;
   c.fillStyle='#0f1115';c.fillRect(0,0,W,H);c.textBaseline='alphabetic';c.textAlign='left';
-  const alive=S.players.map((q,i)=>i).filter(i=>!dead(S.players[i])),win=n>1&&alive.length===1?alive[0]:null;
+  const alive=S.players.map((q,i)=>i).filter(i=>!dead(S.players[i])),solo=n===1,win=solo?(S.altWin&&S.altWin.winner===0&&alive.length?0:null):(n>1&&alive.length===1?alive[0]:null);
   c.fillStyle='#f3f4f6';c.font=F(20,800);c.fillText('Game summary',16*u,32*u);
-  c.fillStyle='#9aa0ab';c.font=F(11);c.fillText(`${MODES[S.mode].label}${S.bracket?` · Bracket ${S.bracket}`:''} · ${n} players · ${fmt(S.elapsed)}${S.round?` · ${S.round} round${S.round>1?'s':''}`:''} · ${new Date().toLocaleDateString()}`,16*u,50*u);
+  c.fillStyle='#9aa0ab';c.font=F(11);c.fillText(`${MODES[S.mode].label}${S.bracket?` · Bracket ${S.bracket}`:''} · ${solo?'Solo':n+' players'} · ${fmt(S.elapsed)}${S.round?` · ${S.round} round${S.round>1?'s':''}`:''} · ${new Date().toLocaleDateString()}`,16*u,50*u);
   c.font=F(15,800);c.fillStyle=win!=null?'#fbbf24':'#9aa0ab';
-  let head=win!=null?`🏆 ${S.players[win].name} wins${S.altWin&&S.altWin.winner===win?` with ${S.altWin.by}`:''}`:(alive.length===0?'Draw — nobody left standing':'Game in progress');
+  let head=solo?(win!=null?`🏆 ${S.players[0].name} won the game`:alive.length?'Game in progress':`${S.players[0].name} was defeated`):win!=null?`🏆 ${S.players[win].name} wins${S.altWin&&S.altWin.winner===win?` with ${S.altWin.by}`:''}`:(alive.length===0?'Draw — nobody left standing':'Game in progress');
   while(head.length>3&&c.measureText(head).width>W-32*u)head=head.slice(0,-2)+'…';
   c.fillText(head,16*u,76*u);
   c.font=F(13,700);c.fillStyle='#f3f4f6';c.fillText('Life Totals',16*u,100*u);
@@ -1342,7 +1396,7 @@ function drawSummary(cv,W){
   const place=placeOf;   // players eliminated together share a place
   ranked.forEach((i,pos)=>{
     const q=S.players[i],y=B+34*u+pos*28*u,pl=place(i);
-    const icon=placeIcon(i);
+    const icon=solo?(i===win?'🏆':dead(q)?'☠️':''):placeIcon(i);
     c.textAlign='left';c.font=F(15);c.fillStyle='#f3f4f6';c.fillText(icon,12*u,y+13*u);
     const col=colorOf(i);
     c.beginPath();c.arc(44*u,y+7*u,8*u,0,7);c.fillStyle=col;c.fill();c.lineWidth=1.5*u;c.strokeStyle='rgba(255,255,255,.7)';c.stroke();
@@ -1370,15 +1424,15 @@ function drawSummary(cv,W){
   });
 }
 let sumUrl=null;
-function showSummaryModal(cv,backLabel,onBack,fname){
+function showSummaryModal(cv,backLabel,onBack,fname,noShare){
   const ratio=cv.width/cv.height;   // size the picture so the whole graph and legend fit the screen at once
-  modal(`<img id="sumimg" alt="Life totals over the game" style="aspect-ratio:${ratio};width:min(100%,calc((100vh - 168px) * ${ratio}))">
+  modal(`<img id="sumimg" alt="Life totals over the game" style="aspect-ratio:${ratio};width:min(100%,calc((100vh - ${noShare?110:168}px) * ${ratio}))">
 <div class="btns"><button class="share" id="sshare" disabled>Share image</button><button id="x">${backLabel}</button></div>
-<button class="resbtn" id="sres2">📤 Share results</button>`,card=>{
+${noShare?'':'<button class="resbtn" id="sres2">📤 Share results</button>'}`,card=>{
     card.classList.add('bare');
     let file=null;
     card.querySelector('#x').onclick=onBack;
-    card.querySelector('#sres2').onclick=()=>openShareResults(()=>showSummaryModal(cv,backLabel,onBack,fname));   // Close there comes back to this graph
+    const rb=card.querySelector('#sres2');if(rb)rb.onclick=()=>openShareResults(()=>showSummaryModal(cv,backLabel,onBack,fname));   // Close there comes back to this graph
     cv.toBlob(blob=>{
       if(!blob)return;
       if(sumUrl)URL.revokeObjectURL(sumUrl);sumUrl=URL.createObjectURL(blob);
@@ -1395,20 +1449,21 @@ function showSummaryModal(cv,backLabel,onBack,fname){
 }
 function openSummary(){
   const cv=document.createElement('canvas');drawSummary(cv,1080);
-  showSummaryModal(cv,'Close',closeModal,'mtg-game-summary.png');
+  showSummaryModal(cv,'Close',closeModal,'mtg-game-summary.png',S.players.length===1);
 }
 function startedNewGame(){
   gameIsOver=false;   // the previous game's state must not leak into the checks below
-  closeSheet();closeCmdr();clearHistory();closeModal();hideDefaultNames=true;render();
+  closeSheet();closeCmdr();clearHistory();closeModal();hideDefaultNames=S.players.length>1;render();
   S.barO=orient();placeBar(bar.dataset.pos,false);   // a new game takes the bar direction from the current orientation
-  setTimeout(()=>pickRandomPlayer('goes first',true),350);   // roll for who goes first as soon as the game starts
+  if(S.players.length>1)setTimeout(()=>pickRandomPlayer('goes first',true),350);   // roll for who goes first as soon as the game starts (nothing to roll in a solo game)
   $('bPause').textContent='⏸';$('timer').textContent=fmt(S.elapsed);
 }
+const bracketFor=(count,mode,prev,done)=>count===1?done(null):askBracket(mode,prev,done);   // a solo game has no bracket
 $('bMenu').onclick=()=>{
   let n=S.players.length,mode=S.mode;
   modal(`<h2>Settings</h2>
 <h3>Format</h3><div class="grid" id="modes">${Object.entries(MODES).map(([k,m])=>`<button data-m="${k}" class="${k===mode?'on':''}">${m.label}<br><small>${m.life} life</small></button>`).join('')}</div>
-<h3>Players</h3><div class="grid" id="ns">${[2,3,4,5,6].map(x=>`<button data-n="${x}" class="${x===n?'on':''}">${x}</button>`).join('')}</div>
+<h3>Players</h3><div class="grid" id="ns">${[1,2,3,4,5,6].map(x=>`<button data-n="${x}" class="${x===n?'on':''}">${x}${x===1?'<br><small>Solo</small>':''}</button>`).join('')}</div>
 <button class="big" style="margin-top:18px" id="go">Start new game</button>
 <button class="big" style="margin-top:8px" id="same">New game, same players<br><small style="font-weight:500;color:var(--muted)">Keeps names, commanders and colors</small></button>
 <hr class="sep">
@@ -1425,9 +1480,10 @@ $('bMenu').onclick=()=>{
     c.querySelector('#share').onclick=openShareApp;
     c.querySelector('#sres').onclick=openShareResults;
     c.querySelector('#fb').onclick=openFeedback;
-    c.querySelector('#go').onclick=()=>askSaveThen(()=>askBracket(mode,null,b=>{S=fresh(n,mode);S.bracket=b;startedNewGame();wake()}));
-    c.querySelector('#same').onclick=()=>askSaveThen(()=>askBracket(S.mode,S.bracket,b=>{
+    c.querySelector('#go').onclick=()=>askSaveThen(()=>bracketFor(n,mode,null,b=>{S=fresh(n,mode);S.bracket=b;startedNewGame();wake()}));
+    c.querySelector('#same').onclick=()=>askSaveThen(()=>bracketFor(S.players.length,S.mode,S.bracket,b=>{
       const old=S;S=fresh(old.players.length,old.mode);S.bracket=b;
+      if(old.players.length===1){S.opps=(old.opps||[]).map(o=>({...makeOpp(o.name),cmds:o.cmds||[],color:o.color}));S.players[0].cmdr=Array(1+S.opps.length).fill(0);S.players[0].cmdrB=Array(1+S.opps.length).fill(0)}   // solo: keep the opponents too
       S.players.forEach((p,k)=>{const o=old.players[k];p.name=o.name;p.defName=o.defName||('Player '+(k+1));p.cmds=o.cmds||[];if(o.color)p.color=o.color;if(o.textColor)p.textColor=o.textColor});
       startedNewGame();wake();
     }));
@@ -1438,7 +1494,7 @@ $('bMenu').onclick=()=>{
 /* Commander bracket (1-5): asked when a Commander game starts, shown in the bar, and carried into the summary image and CSV */
 const BRACKETS={1:'Exhibition',2:'Core',3:'Upgraded',4:'Optimized',5:'cEDH'};
 function syncBracket(){
-  const b=$('bBracket');b.hidden=S.mode!=='commander';
+  const b=$('bBracket');b.hidden=S.mode!=='commander'||S.players.length===1;
   b.textContent=S.bracket?'B'+S.bracket:'B?';
   b.title=S.bracket?`Bracket ${S.bracket} (${BRACKETS[S.bracket]}) - tap to change`:'Commander bracket not set - tap to set';
 }
