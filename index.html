@@ -308,7 +308,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.19.0',APP_BUILD='2026-11-08';
+const APP_VERSION='1.19.1',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -668,7 +668,7 @@ ${local?'<p class="hint" style="text-align:center;color:#fbbf24">This address on
   });
 }
 /* Share results: finished games are sent to a private Google Sheet (through an Apps Script web page). Opt-in; player names are left out unless asked for. */
-const SHEET_URL='',SHEET_KEY='e411c31ec6a88f69ec29a7b0',SHARE_KEY='mtg-life-share';
+const SHEET_URL='https://script.google.com/macros/s/AKfycbytP7_iIF6m19dICxUoFS7kyZHuBqfcWi4bJfTCGIEs6RAVHw5_786k6jGVFind8iEc9Q/exec',SHEET_KEY='e411c31ec6a88f69ec29a7b0',SHARE_KEY='mtg-life-share';
 let shareCfg=(()=>{try{return {on:false,names:false,...JSON.parse(localStorage.getItem(SHARE_KEY))}}catch(e){return{on:false,names:false}}})();
 const saveShareCfg=()=>{try{localStorage.setItem(SHARE_KEY,JSON.stringify(shareCfg))}catch(e){}};
 let shareBusy=false,shareMsg='';
