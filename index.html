@@ -314,7 +314,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.20.3',APP_BUILD='2026-11-08';
+const APP_VERSION='1.20.4',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -817,6 +817,7 @@ function turnOrder(){
   return at>0?ord.slice(at).concat(ord.slice(0,at)):ord;
 }
 /* after the roll: number the players 1..n in turn order. Names typed in by the players are kept. */
+let hideDefaultNames=false;
 function renumberByTurn(){
   if(S.first==null)return;
   turnOrder().forEach((pi,k)=>{
@@ -840,7 +841,7 @@ function update(){
     if(S.first===i){   // went first: gold stars either side of the name; tapping one starts the next round
       const star=()=>{const e=el('span','star','★');e.title='Went first - tap to start the next round';e.onclick=ev=>{ev.stopPropagation();nextRound()};return e};
       nm.append(star(),document.createTextNode(' '+p.name+' '),star());
-    }else nm.append(document.createTextNode(p.name));
+    }else nm.append(document.createTextNode(hideDefaultNames&&p.name===defaultName(p,i)?' ':p.name));   // while the turn order is being rolled, default "Player N" names are blank (they get renumbered afterwards)
     P.querySelector('.cbtn').hidden=!MODES[S.mode].cmdr;   // commander damage shortcut: Commander/Brawl only
     nm.classList.toggle('editable',p.name===defaultName(p,i));  // still the default: tap the name to rename it right here
     if(p.cmds.length){const sm=el('small');sm.textContent=p.cmds.map(c=>c.name).join(' & ')+' · art: '+[...new Set(p.cmds.map(c=>c.artist).filter(Boolean))].join(', ');nm.append(sm)}
@@ -1219,7 +1220,7 @@ let pickTimers=[];
 let pendingFirst=null;
 function endPick(){
   pickTimers.forEach(clearTimeout);pickTimers=[];
-  if(pendingFirst!=null){S.first=pendingFirst;pendingFirst=null;renumberByTurn();update()}
+  if(pendingFirst!=null){S.first=pendingFirst;pendingFirst=null;hideDefaultNames=false;renumberByTurn();update()}
   panels.forEach(x=>{x.P.classList.remove('hl','win');x.P.querySelector('.sparkles.pick')?.remove()});
   $('app').classList.remove('picking');$('pickguard').style.display='none';
 }
@@ -1397,7 +1398,7 @@ function openSummary(){
 }
 function startedNewGame(){
   gameIsOver=false;   // the previous game's state must not leak into the checks below
-  closeSheet();closeCmdr();clearHistory();closeModal();render();
+  closeSheet();closeCmdr();clearHistory();closeModal();hideDefaultNames=true;render();
   S.barO=orient();placeBar(bar.dataset.pos,false);   // a new game takes the bar direction from the current orientation
   setTimeout(()=>pickRandomPlayer('goes first',true),350);   // roll for who goes first as soon as the game starts
   $('bPause').textContent='⏸';$('timer').textContent=fmt(S.elapsed);
