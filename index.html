@@ -270,6 +270,9 @@ body.tablet .badges{right:70px}
 #modal .card.bare img{display:block;border-radius:14px;background:#0f1115;max-width:100%}
 #modal .card.bare .btns{display:flex;gap:10px;width:100%}
 #modal .card.bare .btns button{flex:1;height:46px;border-radius:12px;background:#262a33;font-size:16px;font-weight:700}
+#modal .card.bare .devbtn{width:100%;height:46px;border-radius:12px;background:#1f2937;border:1px solid #3b4150;color:#fff;font-size:15px;font-weight:700}
+#modal .card.bare .devbtn:disabled{opacity:.5}
+#modal .card.bare .devnote{margin:0;text-align:center;color:var(--muted);font-size:12px;line-height:1.3}
 #modal .card.bare .btns .share{background:var(--accent);color:#000}
 #modal .card.bare .btns button:disabled{opacity:.5}
 #modal h2{margin:0 0 12px;font-size:20px}
@@ -308,7 +311,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.18.1',APP_BUILD='2026-11-07';
+const APP_VERSION='1.19.0',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -530,6 +533,7 @@ function confirmCard(i,mode,card,img){
   });
 }
 /* ===== game history: saved on the phone, exported as CSV ===== */
+const DEV_EMAIL='mtgboglife@gmail.com';
 const HKEY='mtg-life-history',LASTEXP='mtg-life-lastexport',SHORT_GAME=180;   // seconds
 let HIST=(()=>{try{return JSON.parse(localStorage.getItem(HKEY))||[]}catch(e){return[]}})();
 let askedPersist=false;
@@ -559,7 +563,7 @@ function openSavedSummary(id){
   }
   const keep=S,cv=document.createElement('canvas');
   S=restoreSnapshot(g.sn);try{drawSummary(cv,1080)}finally{S=keep}   // the drawing code reads the current game, so point it at the saved one just for this call
-  showSummaryModal(cv,'Back',openHistory,'bog-life-'+new Date(g.startedAt).toLocaleDateString('en-CA')+'.png');
+  showSummaryModal(cv,'Back',openHistory,'bog-life-'+new Date(g.startedAt).toLocaleDateString('en-CA')+'.png',()=>g);
 }
 function buildRecord(finished,auto){
   const turn=turnOrder(),turnPos={};turn.forEach((pi,k)=>{turnPos[pi]=k+1});
@@ -622,10 +626,10 @@ function askSaveThen(next){
   });
 }
 const csvCell=v=>{v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-function historyCsv(){
+function historyCsv(recs){
   const head=['game_id','date','start_time','format','bracket','game_length','game_length_seconds','rounds','status','winner','player','turn_order','went_first','place','commander','final_life','final_poison','max_commander_damage_taken','result','detail','eliminated_round','eliminated_time','cant_lose'];
   const rows=[head];
-  HIST.slice().sort((a,b)=>a.startedAt-b.startedAt).forEach(g=>{
+  (recs||HIST).slice().sort((a,b)=>a.startedAt-b.startedAt).forEach(g=>{
     const d=new Date(g.startedAt),date=d.toLocaleDateString('en-CA'),time=d.toTimeString().slice(0,5);
     const winner=(g.players.find(p=>p.result==='Winner')||{}).name||(g.finished?'Draw':'');
     // rows in finish order; players without a place yet (an unfinished game) come last
@@ -1252,10 +1256,11 @@ function drawSummary(cv,W){
   });
 }
 let sumUrl=null;
-function showSummaryModal(cv,backLabel,onBack,fname){
+function showSummaryModal(cv,backLabel,onBack,fname,getRecord){
   const ratio=cv.width/cv.height;   // size the picture so the whole graph and legend fit the screen at once
-  modal(`<img id="sumimg" alt="Life totals over the game" style="aspect-ratio:${ratio};width:min(100%,calc((100vh - 110px) * ${ratio}))">
-<div class="btns"><button class="share" id="sshare" disabled>Share image</button><button id="x">${backLabel}</button></div>`,card=>{
+  modal(`<img id="sumimg" alt="Life totals over the game" style="aspect-ratio:${ratio};width:min(100%,calc((100vh - 185px) * ${ratio}))">
+<div class="btns"><button class="share" id="sshare" disabled>Share image</button><button id="x">${backLabel}</button></div>
+<button class="devbtn" id="sdev" disabled>Share game results with the developer</button><p class="devnote" id="devnote"></p>`,card=>{
     card.classList.add('bare');
     let file=null;
     card.querySelector('#x').onclick=onBack;
@@ -1264,18 +1269,33 @@ function showSummaryModal(cv,backLabel,onBack,fname){
       if(sumUrl)URL.revokeObjectURL(sumUrl);sumUrl=URL.createObjectURL(blob);
       card.querySelector('#sumimg').src=sumUrl;
       file=new File([blob],fname,{type:'image/png'});   // built ahead of the tap: iOS wants share() called straight from the gesture
-      card.querySelector('#sshare').disabled=false;
+      card.querySelector('#sshare').disabled=false;card.querySelector('#sdev').disabled=false;
     },'image/png');
     card.querySelector('#sshare').onclick=()=>{
       if(!file)return;
       if(navigator.canShare&&navigator.canShare({files:[file]}))navigator.share({files:[file],title:'MTG game summary'}).catch(()=>{});
       else{const a=document.createElement('a');a.href=sumUrl;a.download=file.name;document.body.append(a);a.click();a.remove()}
     };
+    // email the results to the developer: the graph picture plus this game's CSV, through the phone's share sheet
+    card.querySelector('#sdev').onclick=()=>{
+      if(!file||!getRecord)return;
+      const rec=getRecord(),csv=new File([historyCsv([rec])],'bog-life-game-'+new Date(rec.startedAt).toLocaleDateString('en-CA')+'.csv',{type:'text/csv'});
+      const note=card.querySelector('#devnote'),subject='Bog Life game results',text='Game results from Bog Life. Please send to '+DEV_EMAIL+'.';
+      try{navigator.clipboard&&navigator.clipboard.writeText(DEV_EMAIL).catch(()=>{})}catch(e){}   // so it can be pasted into To:
+      if(navigator.canShare&&navigator.canShare({files:[file,csv]})){
+        note.textContent='Address copied ('+DEV_EMAIL+'). Choose Mail, and paste it into To: if that field is empty.';
+        navigator.share({files:[file,csv],title:subject,text}).catch(()=>{});
+      }else{   // no file sharing here: save both files and open an email to attach them to
+        [file,csv].forEach(f=>{const u=URL.createObjectURL(f),a=document.createElement('a');a.href=u;a.download=f.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)});
+        note.textContent='Both files were saved. Attach them to the email that opens, to '+DEV_EMAIL+'.';
+        const m=document.createElement('a');m.href='mailto:'+DEV_EMAIL+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent('Game results from Bog Life. Please attach the two files that were just saved (the graph picture and the CSV).');document.body.append(m);m.click();m.remove();
+      }
+    };
   });
 }
 function openSummary(){
   const cv=document.createElement('canvas');drawSummary(cv,1080);
-  showSummaryModal(cv,'Close',closeModal,'mtg-game-summary.png');
+  showSummaryModal(cv,'Close',closeModal,'mtg-game-summary.png',()=>buildRecord(gameIsOver,false));
 }
 function startedNewGame(){
   gameIsOver=false;   // the previous game's state must not leak into the checks below
