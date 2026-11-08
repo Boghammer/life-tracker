@@ -271,6 +271,7 @@ body.tablet .badges{right:70px}
 #modal .card.bare img{display:block;border-radius:14px;background:#0f1115;max-width:100%}
 #modal .card.bare .btns{display:flex;gap:10px;width:100%}
 #modal .card.bare .btns button{flex:1;height:46px;border-radius:12px;background:#262a33;font-size:16px;font-weight:700}
+#modal .card.bare .resbtn{width:100%;height:46px;border-radius:12px;background:#262a33;border:1px solid #3b4150;color:#fff;font-size:16px;font-weight:700}
 #modal .card.bare .btns .share{background:var(--accent);color:#000}
 #modal .card.bare .btns button:disabled{opacity:.5}
 #modal textarea::placeholder,#modal #fbk::placeholder{color:#8b93a3}
@@ -311,7 +312,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.20.1',APP_BUILD='2026-11-08';
+const APP_VERSION='1.20.2',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -704,7 +705,7 @@ async function syncResults(manual){
   if($('shareStatus'))$('shareStatus').textContent=shareMsg;
 }
 addEventListener('online',()=>syncResults(false));
-function openShareResults(){
+function openShareResults(onClose){
   const draw=c=>{
     const w=waiting().length;
     c.querySelector('#tOn').textContent=(shareCfg.on?'✅':'⬜')+' Send my results automatically';
@@ -724,7 +725,7 @@ ${SHEET_URL?'':'<p class="hint" style="color:#fbbf24">Not set up yet: this copy 
     c.querySelector('#tOn').onclick=()=>{shareCfg.on=!shareCfg.on;saveShareCfg();draw(c);if(shareCfg.on)syncResults(false).then(()=>draw(c))};
     c.querySelector('#tNm').onclick=()=>{shareCfg.names=!shareCfg.names;shareCfg.namesSet=true;saveShareCfg();draw(c)};
     c.querySelector('#snd').onclick=async()=>{c.querySelector('#snd').disabled=true;c.querySelector('#shareStatus').textContent='Sending…';await syncResults(true);draw(c)};
-    c.querySelector('#x').onclick=closeModal;
+    c.querySelector('#x').onclick=typeof onClose==='function'?onClose:closeModal;
   });
 }
 /* Feedback: a short message to the developer's sheet (same web app as the shared results) */
@@ -1351,11 +1352,13 @@ function drawSummary(cv,W){
 let sumUrl=null;
 function showSummaryModal(cv,backLabel,onBack,fname){
   const ratio=cv.width/cv.height;   // size the picture so the whole graph and legend fit the screen at once
-  modal(`<img id="sumimg" alt="Life totals over the game" style="aspect-ratio:${ratio};width:min(100%,calc((100vh - 110px) * ${ratio}))">
-<div class="btns"><button class="share" id="sshare" disabled>Share image</button><button id="x">${backLabel}</button></div>`,card=>{
+  modal(`<img id="sumimg" alt="Life totals over the game" style="aspect-ratio:${ratio};width:min(100%,calc((100vh - 168px) * ${ratio}))">
+<div class="btns"><button class="share" id="sshare" disabled>Share image</button><button id="x">${backLabel}</button></div>
+<button class="resbtn" id="sres2">📤 Share results</button>`,card=>{
     card.classList.add('bare');
     let file=null;
     card.querySelector('#x').onclick=onBack;
+    card.querySelector('#sres2').onclick=()=>openShareResults(()=>showSummaryModal(cv,backLabel,onBack,fname));   // Close there comes back to this graph
     cv.toBlob(blob=>{
       if(!blob)return;
       if(sumUrl)URL.revokeObjectURL(sumUrl);sumUrl=URL.createObjectURL(blob);
