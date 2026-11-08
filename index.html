@@ -272,6 +272,7 @@ body.tablet .badges{right:70px}
 #modal .card.bare .btns button{flex:1;height:46px;border-radius:12px;background:#262a33;font-size:16px;font-weight:700}
 #modal .card.bare .btns .share{background:var(--accent);color:#000}
 #modal .card.bare .btns button:disabled{opacity:.5}
+#modal .big:disabled{opacity:.4;pointer-events:none}
 #modal hr.sep{border:0;border-top:1px solid #3b4150;margin:18px 8px 6px}
 #modal h2{margin:0 0 12px;font-size:20px}
 #modal h3{margin:16px 0 8px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -308,7 +309,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.19.4',APP_BUILD='2026-11-08';
+const APP_VERSION='1.19.5',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1356,7 +1357,8 @@ $('bMenu').onclick=()=>{
 <button class="big" style="margin-top:8px" id="x">Cancel</button>
 <p class="hint" style="text-align:center;margin-top:16px">${versionLine()}<br>Made w/ Claude Code</p>`,c=>{
     const pick=(sel,attr,fn)=>c.querySelectorAll(sel).forEach(b=>b.onclick=()=>{c.querySelectorAll(sel).forEach(y=>y.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr])});
-    pick('[data-m]','m',v=>mode=v);pick('[data-n]','n',v=>n=+v);
+    const sameBtn=c.querySelector('#same'),syncSame=()=>{sameBtn.disabled=!(mode===S.mode&&n===S.players.length)};   // same players only makes sense with the same format and player count
+    pick('[data-m]','m',v=>{mode=v;syncSame()});pick('[data-n]','n',v=>{n=+v;syncSame()});syncSame();
     c.querySelector('#hist').onclick=openHistory;
     c.querySelector('#share').onclick=openShareApp;
     c.querySelector('#sres').onclick=openShareResults;
