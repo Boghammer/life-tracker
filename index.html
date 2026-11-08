@@ -41,6 +41,8 @@ body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!imp
 .cmdr-ov .rows{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
 .crow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;background:#1c2029;border:1px solid #2b303b;border-radius:12px;padding:5px 6px}
 .crow .pill{flex:none;min-width:32px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.crow .lbl small{display:block;color:var(--muted);font-size:.85em;line-height:1.15}
+.crow .stp button,.ctr .stepper button{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .crow .lbl{flex:1 1 70px;min-width:0;font-size:12px;line-height:1.15;overflow-wrap:anywhere}
 .crow .stp{flex:none;display:flex;align-items:center;gap:6px;margin-left:auto}
 .crow .stp button{width:30px;height:30px;border-radius:50%;background:#2b303b;font-size:18px;font-weight:700;color:#fff}
@@ -312,7 +314,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.20.2',APP_BUILD='2026-11-08';
+const APP_VERSION='1.20.3',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1030,11 +1032,11 @@ function openCmdr(i){
         const col=colorOf(j);
         row.innerHTML='<div class="pill"></div><div class="lbl"></div><div class="stp"><button class="minus">−</button><div class="cnt"><span class="val"></span><span class="of">of 21</span></div><button class="plus">+</button></div>';
         const pill=row.querySelector('.pill');pill.textContent='P'+(j+1);pill.style.background=col;pill.style.color=isLight(col)?'#111':'#fff';
-        row.querySelector('.lbl').textContent='From '+(j===i?'my own ':'')+(o.cmds[k]?o.cmds[k].name:o.name);
+        row.querySelector('.lbl').innerHTML='From '+(j===i?'myself ('+esc(o.name)+')':esc(o.name))+(dead(o)?' (defeated)':'')+(o.cmds[k]?'<small>'+esc(o.cmds[k].name)+'</small>':'');
         row.querySelector('.val').textContent=val;
-        if(dead(o)){row.querySelector('.plus').disabled=true;row.querySelector('.lbl').textContent+=' (defeated)'}
-        row.querySelector('.minus').onclick=()=>{if(cmdrAdjust(i,key,-1))draw()};
-        row.querySelector('.plus').onclick=()=>{cmdrAdjust(i,key,1);draw()};
+        if(dead(o))row.querySelector('.plus').disabled=true;
+        holdRepeat(row.querySelector('.minus'),()=>{const r=cmdrAdjust(i,key,-1);if(r)draw();return r});
+        holdRepeat(row.querySelector('.plus'),()=>{const r=cmdrAdjust(i,key,1);draw();return r});
         rows.append(row);
       }
     });
@@ -1073,6 +1075,19 @@ function adjust(i,d){
     p.log.push({t:S.elapsed,d:x.delta,life:p.life,k:'life'});x.delta=0;dl.classList.remove('show');save()},1500);
   update();
 }
+/* press once = one step; keep holding = it repeats, then speeds up. step() returns false when it can't go further. Stops on release anywhere (the screen may redraw under the finger). */
+function holdRepeat(btn,step){
+  btn.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    if(!step())return;
+    let n=0,t=null;
+    const stop=()=>{clearTimeout(t);document.removeEventListener('pointerup',stop);document.removeEventListener('pointercancel',stop)};
+    const tick=()=>{if(!step()){stop();return}n++;t=setTimeout(tick,n>8?60:130)};
+    t=setTimeout(tick,420);
+    document.addEventListener('pointerup',stop);document.addEventListener('pointercancel',stop);
+  });
+  btn.addEventListener('contextmenu',e=>e.preventDefault());
+}
 function cmdrAdjust(i,k,d){
   const p=S.players[i],j=+k.slice(1),a=k[0]==='c'?p.cmdr:p.cmdrB;
   if(a[j]+d<0)return false;
@@ -1097,7 +1112,7 @@ function openSheet(i){
   if(m.cmdr){
     h+='<h3>Commander damage received</h3>';
     S.players.forEach((o,j)=>{
-      const lbl=k=>`<span style="color:${colorOf(j)}">●</span> From ${j===i?'my own ':''}${esc(o.cmds[k]?o.cmds[k].name:o.name)}`,sub='lethal at 21 · also reduces life';
+      const lbl=k=>`<span style="color:${colorOf(j)}">●</span> From ${j===i?'myself ('+esc(o.name)+')':esc(o.name)}${o.cmds[k]?'<small style="color:#cbd5e1">'+esc(o.cmds[k].name)+'</small>':''}`,sub='lethal at 21 · also reduces life';
       h+=ctr('c'+j,lbl(0),sub,p.cmdr[j],p.cmdr[j]>=21,dead(o));
       if(o.cmds.length>1)h+=ctr('d'+j,lbl(1),sub,p.cmdrB[j],p.cmdrB[j]>=21,dead(o));
     });
@@ -1154,12 +1169,15 @@ function openSheet(i){
       }catch(err){cres.innerHTML='<div class="hint">Could not reach Scryfall (offline?).</div>'}
     },350);
   };
-  sh.querySelectorAll('.stepper button').forEach(b=>b.onclick=()=>{
-    const k=b.dataset.k,d=+b.dataset.d;buzz();
-    if(k==='life'){record('life'+i);p.life+=d;logEvent(p,'life',d,p.life)}
-    else if(k[0]==='c'||k[0]==='d'){if(!cmdrAdjust(i,k,d))return}
-    else{if(p[k]+d<0)return;record(k+i);p[k]+=d}
-    update();openSheet(i);
+  sh.querySelectorAll('.stepper button').forEach(b=>{
+    const k=b.dataset.k,d=+b.dataset.d;
+    if(k[0]==='c'||k[0]==='d'){holdRepeat(b,()=>{const r=cmdrAdjust(i,k,d);if(r)openSheet(i);return r});return}
+    b.onclick=()=>{
+      buzz();
+      if(k==='life'){record('life'+i);p.life+=d;logEvent(p,'life',d,p.life)}
+      else{if(p[k]+d<0)return;record(k+i);p[k]+=d}
+      update();openSheet(i);
+    };
   });
   sh.querySelector('#tm').onclick=()=>{record('tok');S.monarch=S.monarch===i?null:i;update();openSheet(i)};
   sh.querySelector('#ti').onclick=()=>{record('tok');S.initiative=S.initiative===i?null:i;update();openSheet(i)};
