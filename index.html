@@ -296,7 +296,6 @@ body.tablet .badges{right:70px}
   <button id="bRedo" title="Redo" disabled>↷</button>
   <button id="bRound" title="Start the next round">R0</button>
   <button id="bBracket" title="Commander bracket - tap to change" hidden>B?</button>
-  <button id="bGraph" title="Game summary graph" hidden>📊</button>
   <div id="timer">0:00</div>
   <button id="bPause" title="Pause timer">⏸</button>
 </div>
@@ -308,7 +307,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.19.1',APP_BUILD='2026-11-08';
+const APP_VERSION='1.19.2',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -835,7 +834,7 @@ function update(){
     const champ=!isDead&&aliveCount===1&&S.players.length>1;
     P.classList.toggle('champ',champ);
     let cs2=P.querySelector('.sparkles.champ-sp');
-    if(champ&&!cs2){const sp=makeSparkles('Winner! 📊','champ-sp',true,isLight(colorOf(i))&&!p.cmds.length);sp.querySelector('.first').onclick=openSummary;pcOf(P).append(sp)}
+    if(champ&&!cs2){const sp=makeSparkles('Winner!','champ-sp',true,isLight(colorOf(i))&&!p.cmds.length);const fb=sp.querySelector('.first');fb.title='Game summary graph';fb.insertAdjacentHTML('beforeend','<div style="font-size:2.6em;line-height:1.1;margin-top:2px">📊</div>');fb.onclick=openSummary;pcOf(P).append(sp)}
     else if(!champ&&cs2)cs2.remove();
     const cd=P.querySelector('.cdmg');cd.innerHTML='';
     if(MODES[S.mode].cmdr)S.players.forEach((o,j)=>{
@@ -893,7 +892,7 @@ function update(){
   });
   // game over (one or no players left): show the summary once. First update after load/new game only records the state.
   const over=S.players.length>1&&S.players.filter(q=>!dead(q)).length<=1;
-  const wasOver=gameIsOver;gameIsOver=over;$('bGraph').hidden=!over;syncRound();syncBracket();
+  const wasOver=gameIsOver;gameIsOver=over;syncRound();syncBracket();
   if(over){
     if(S.elapsed>=SHORT_GAME)saveGameRecord(true);
     else if(S.saveAnswered==='saved')saveGameRecord(true,true);   // a short game you chose to keep stays current (e.g. after fixing a tie)
@@ -1397,7 +1396,6 @@ function nextRound(){
   buzz();update();
 }
 $('bRound').onclick=nextRound;
-$('bGraph').onclick=openSummary;
 $('bUndo').onclick=undo;$('bRedo').onclick=redo;
 $('bPause').onclick=()=>{S.paused=!S.paused;$('bPause').textContent=S.paused?'▶️':'⏸';save()};
 
