@@ -314,7 +314,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.20.4',APP_BUILD='2026-11-08';
+const APP_VERSION='1.20.5',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1242,6 +1242,7 @@ function pickRandomPlayer(label='selected!',isFirst=false){
   }
   pickTimers.push(setTimeout(()=>{
     const P=panels[w].P;P.classList.remove('hl');P.classList.add('win');
+    if(pendingFirst!=null){S.first=pendingFirst;pendingFirst=null;hideDefaultNames=false;renumberByTurn();update()}   // the numbers appear as the sparkles start
     pcOf(P).append(makeSparkles(label,'pick',false,isLight(colorOf(w))&&!S.players[w].cmds.length));buzz();
   },4000+120));
   pickTimers.push(setTimeout(endPick,4000+120+3000));
