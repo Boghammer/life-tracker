@@ -272,6 +272,7 @@ body.tablet .badges{right:70px}
 #modal .card.bare .btns button{flex:1;height:46px;border-radius:12px;background:#262a33;font-size:16px;font-weight:700}
 #modal .card.bare .btns .share{background:var(--accent);color:#000}
 #modal .card.bare .btns button:disabled{opacity:.5}
+#modal textarea::placeholder,#modal #fbk::placeholder{color:#8b93a3}
 #modal .big:disabled{opacity:.4;pointer-events:none}
 #modal hr.sep{border:0;border-top:1px solid #3b4150;margin:18px 8px 6px}
 #modal h2{margin:0 0 12px;font-size:20px}
@@ -309,7 +310,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.19.5',APP_BUILD='2026-11-08';
+const APP_VERSION='1.20.0',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -722,6 +723,39 @@ ${SHEET_URL?'':'<p class="hint" style="color:#fbbf24">Not set up yet: this copy 
     c.querySelector('#tOn').onclick=()=>{shareCfg.on=!shareCfg.on;saveShareCfg();draw(c);if(shareCfg.on)syncResults(false).then(()=>draw(c))};
     c.querySelector('#tNm').onclick=()=>{shareCfg.names=!shareCfg.names;shareCfg.namesSet=true;saveShareCfg();draw(c)};
     c.querySelector('#snd').onclick=async()=>{c.querySelector('#snd').disabled=true;c.querySelector('#shareStatus').textContent='Sending…';await syncResults(true);draw(c)};
+    c.querySelector('#x').onclick=closeModal;
+  });
+}
+/* Feedback: a short message to the developer's sheet (same web app as the shared results) */
+const FB_CATS=['Bug Report','Feature Request','Other'];
+let fbDraft={cat:'Bug Report',msg:'',contact:''};
+function clientId(){try{let v=localStorage.getItem('mtg-life-cid');if(!v){v=Date.now().toString(36)+Math.random().toString(36).slice(2,10);localStorage.setItem('mtg-life-cid',v)}return v}catch(e){return 'x'}}   // random, only used by the sheet to limit how often one phone can send
+function openFeedback(){
+  modal(`<h2>💬 Send feedback</h2>
+<p class="hint">Tell the developer what is broken or what you would like. It goes to a private sheet, along with the app version. Please don't include anything private. Add an email or phone below only if you want a reply.</p>
+<h3>Type</h3><div class="grid" id="fbc">${FB_CATS.map(k=>`<button data-c="${k}" class="${k===fbDraft.cat?'on':''}">${k}</button>`).join('')}</div>
+<h3>Message</h3><textarea id="fbm" rows="6" maxlength="2000" placeholder="Type, or tap the keyboard's 🎤…" style="width:100%;box-sizing:border-box;background:#262a33;color:#fff;border:1px solid #3b4150;border-radius:12px;padding:12px;font-size:16px;font-family:inherit;resize:vertical">${esc(fbDraft.msg)}</textarea>
+<h3>Contact (optional)</h3><input id="fbk" maxlength="200" placeholder="Email or phone, if you want a reply" autocomplete="off" autocapitalize="off" style="width:100%;box-sizing:border-box;background:#262a33;color:#fff;border:1px solid #3b4150;border-radius:12px;padding:12px;font-size:16px" value="${esc(fbDraft.contact)}">
+<button class="big" style="margin-top:14px" id="fbs">Send</button>
+<p class="hint" id="fbst" style="text-align:center;min-height:1.3em"></p>
+<button class="big" style="margin-top:4px" id="x">Close</button>`,c=>{
+    const m=c.querySelector('#fbm'),k=c.querySelector('#fbk'),b=c.querySelector('#fbs'),st=c.querySelector('#fbst');
+    const sync=()=>{fbDraft.msg=m.value;fbDraft.contact=k.value;b.disabled=!SHEET_URL||!m.value.trim()};
+    m.oninput=k.oninput=sync;sync();
+    c.querySelectorAll('[data-c]').forEach(x=>x.onclick=()=>{c.querySelectorAll('[data-c]').forEach(y=>y.classList.remove('on'));x.classList.add('on');fbDraft.cat=x.dataset.c});
+    b.onclick=async()=>{
+      b.disabled=true;st.textContent='Sending…';
+      try{
+        if(navigator.onLine===false)throw new Error('offline');
+        const r=await fetch(SHEET_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:SHEET_KEY,v:1,type:'feedback',app:APP_VERSION,cid:clientId(),category:fbDraft.cat,message:m.value.trim(),contact:k.value.trim()})});
+        const j=await r.json();
+        if(!j.ok)throw new Error(j.error||'refused');
+        fbDraft={cat:fbDraft.cat,msg:'',contact:''};m.value='';k.value='';st.textContent='Sent. Thank you!';
+      }catch(e){
+        st.textContent=e.message==='rate'?'You have sent a few already. Please try again later.':e.message==='key'?'This version of the app is too old to send feedback. Please update the app.':'Could not send. Your message is kept, so you can try again.';
+        sync();
+      }
+    };
     c.querySelector('#x').onclick=closeModal;
   });
 }
@@ -1354,6 +1388,7 @@ $('bMenu').onclick=()=>{
 <button class="big" style="margin-top:8px" id="hist">📒 Game history (${HIST.length})</button>
 <button class="big" style="margin-top:8px" id="share">📲 Share the app</button>
 <button class="big" style="margin-top:8px" id="sres">📤 Share results</button>
+<button class="big" style="margin-top:8px" id="fb">💬 Send feedback</button>
 <button class="big" style="margin-top:8px" id="x">Cancel</button>
 <p class="hint" style="text-align:center;margin-top:16px">${versionLine()}<br>Made w/ Claude Code</p>`,c=>{
     const pick=(sel,attr,fn)=>c.querySelectorAll(sel).forEach(b=>b.onclick=()=>{c.querySelectorAll(sel).forEach(y=>y.classList.remove('on'));b.classList.add('on');fn(b.dataset[attr])});
@@ -1362,6 +1397,7 @@ $('bMenu').onclick=()=>{
     c.querySelector('#hist').onclick=openHistory;
     c.querySelector('#share').onclick=openShareApp;
     c.querySelector('#sres').onclick=openShareResults;
+    c.querySelector('#fb').onclick=openFeedback;
     c.querySelector('#go').onclick=()=>askSaveThen(()=>askBracket(mode,null,b=>{S=fresh(n,mode);S.bracket=b;startedNewGame();wake()}));
     c.querySelector('#same').onclick=()=>askSaveThen(()=>askBracket(S.mode,S.bracket,b=>{
       const old=S;S=fresh(old.players.length,old.mode);S.bracket=b;

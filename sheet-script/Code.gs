@@ -9,6 +9,9 @@ var MAX_BYTES = 90000;
 var PLAYER_HEAD = ['game_id', 'received', 'date', 'start_time', 'format', 'bracket', 'game_length', 'game_length_seconds', 'rounds', 'status',
   'winner', 'player', 'turn_order', 'went_first', 'place', 'commander', 'final_life', 'final_poison', 'max_commander_damage_taken',
   'result', 'detail', 'eliminated_round', 'eliminated_time', 'cant_lose', 'names_included', 'app_version'];
+var FEEDBACK_HEAD = ['received', 'category', 'message', 'contact', 'app_version'];
+var CATEGORIES = ['Bug Report', 'Feature Request', 'Other'];
+var FB_PER_HOUR = 5, FB_ALL_PER_HOUR = 60;   // per phone, and for everyone together
 var GAME_HEAD = ['game_id', 'received', 'format', 'bracket', 'seconds', 'rounds', 'players', 'app_version', 'timeline_json'];
 
 function doGet() {
@@ -24,6 +27,7 @@ function doPost(e) {
     var body;
     try { body = JSON.parse(raw); } catch (err) { return out_({ ok: false, error: 'format' }); }
     if (!body || body.key !== KEY) return out_({ ok: false, error: 'key' });
+    if (body.type === 'feedback') return feedback_(body);
     var g = body.game;
     if (!g || typeof g.id !== 'string' || !/^[A-Za-z0-9]{4,40}$/.test(g.id) || !Array.isArray(g.players) ||
         g.players.length < 2 || g.players.length > 6) return out_({ ok: false, error: 'shape' });
@@ -59,6 +63,25 @@ function doPost(e) {
   } finally {
     try { lock.releaseLock(); } catch (x) {}
   }
+}
+
+function feedback_(body) {
+  var msg = String(body.message == null ? '' : body.message).trim().slice(0, 2000);
+  if (!msg) return out_({ ok: false, error: 'shape' });
+  var cat = CATEGORIES.indexOf(body.category) >= 0 ? body.category : 'Other';
+  // rate limit: remembered for an hour in the script cache
+  var cache = CacheService.getScriptCache(), cid = 'fb_' + String(body.cid || 'x').replace(/[^A-Za-z0-9]/g, '').slice(0, 30);
+  var mine = Number(cache.get(cid) || 0), all = Number(cache.get('fb_all') || 0);
+  if (mine >= FB_PER_HOUR || all >= FB_ALL_PER_HOUR) return out_({ ok: false, error: 'rate' });
+  cache.put(cid, String(mine + 1), 3600);
+  cache.put('fb_all', String(all + 1), 3600);
+  var ss = SpreadsheetApp.getActiveSpreadsheet(), sh = sheet_(ss, 'Feedback', FEEDBACK_HEAD);
+  sh.appendRow([new Date(), cat, str2_(msg, 2000), str_(body.contact), str_(body.app)]);
+  return out_({ ok: true });
+}
+function str2_(v, n) {
+  v = String(v == null ? '' : v).slice(0, n);
+  return /^[=+\-@]/.test(v) ? "'" + v : v;
 }
 
 function sheet_(ss, name, head) {
