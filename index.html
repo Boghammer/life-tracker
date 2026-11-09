@@ -232,6 +232,7 @@ body.tablet .badges{right:70px}
 .cmd-cur img{width:56px;height:41px;object-fit:cover;border-radius:4px}
 .cmd-cur button{margin-left:auto;background:#333945;border-radius:8px;padding:8px 10px;font-size:13px}
 .cmd-cur [data-rm]{margin-left:6px}
+.fbtn{align-self:flex-start;margin:6px 0 2px}
 .fgrp{display:flex;align-items:center;gap:8px}
 .fgrp>span{flex:none;min-width:60px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .fgrp .fchip{padding:5px 12px;font-size:13px}
@@ -326,7 +327,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.22.1',APP_BUILD='2026-11-08';
+const APP_VERSION='1.22.2',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -663,7 +664,7 @@ function exportHistory(){
   else{const url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);done()}
 }
 let histFilter='all';   // 'all' or a bracket number; kept while you move around the history screens
-let histPl='all';   // player-count filter
+let histPl='all',histOpen=false;   // player-count filter; whether the Filters section is open
 const HSORT='mtg-life-histsort';
 let histSort=(()=>{try{return {key:'date',dir:-1,...JSON.parse(localStorage.getItem(HSORT))}}catch(e){return{key:'date',dir:-1}}})();   // dir -1 = biggest/newest first
 /* Share the app: a large QR code of the address this app is running from, so anyone nearby can scan it and open it */
@@ -793,15 +794,19 @@ function openHistory(){
   const row=(label,key,cur,opts)=>`<div class="fgrp"><span>${label}</span><div class="fchips">${opts.map(([v,t])=>`<button class="fchip${String(v)===String(cur)?' on':''}" data-k="${key}" data-v="${v}">${t}</button>`).join('')}</div></div>`;
   const arrow=histSort.dir<0?'↓':'↑';
   const chips=row('Sort','sort',histSort.key,[['date','Date'+(histSort.key==='date'?' '+arrow:'')],['length','Length'+(histSort.key==='length'?' '+arrow:'')],['players','Players'+(histSort.key==='players'?' '+arrow:'')]])
-    +(plPresent.length>1?row('Players','pl',histPl,[['all','All'],...plPresent.map(n=>[n,n===1?'Solo':n])]):'')
+    ;
+  const flt=(plPresent.length>1?row('Players','pl',histPl,[['all','All'],...plPresent.map(n=>[n,n===1?'Solo':n])]):'')
     +(present.length?row('Bracket','br',histFilter,[['all','All'],...present.map(b=>[b,'B'+b])]):'');
+  const nAct=(histFilter!=='all')+(histPl!=='all');
+  const filterUi=flt?`<button class="fchip fbtn${nAct?' on':''}" id="ftog">Filters${nAct?' ('+nAct+')':''} ${histOpen?'▴':'▾'}</button>${histOpen?flt:''}`:'';
   const filtered=shown.length!==HIST.length;
   const count=filtered?`Showing ${shown.length} of ${HIST.length} games.`:`${HIST.length} game${HIST.length===1?'':'s'} saved on this phone.`;
-  modal(`<h2>📒 Game history</h2><p class="hint">${count} ${last?'Last exported '+esc(new Date(last).toLocaleDateString())+'.':'Not exported yet.'}${filtered?' Export includes all games.':''}</p>${chips}
+  modal(`<h2>📒 Game history</h2><p class="hint">${count} ${last?'Last exported '+esc(new Date(last).toLocaleDateString())+'.':'Not exported yet.'}${filtered?' Export includes all games.':''}</p>${chips}${filterUi}
 <div>${rows||'<p class="hint">Finished games appear here automatically.</p>'}</div>
 <div class="histbtns"><button class="big" id="exp"${HIST.length?'':' disabled'}>Export CSV</button><button class="big" style="margin-top:8px" id="x">Close</button></div>`,c=>{
     c.querySelector('#x').onclick=closeModal;
     c.querySelector('#exp').onclick=exportHistory;
+    const tg=c.querySelector('#ftog');if(tg)tg.onclick=()=>{histOpen=!histOpen;openHistory()};
     c.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
       const k=b.dataset.k,v=b.dataset.v,num=v==='all'?'all':+v;
       if(k==='sort'){histSort=histSort.key===v?{key:v,dir:-histSort.dir}:{key:v,dir:-1};try{localStorage.setItem(HSORT,JSON.stringify(histSort))}catch(e){}}   // tap the active sort again to flip it
