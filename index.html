@@ -232,6 +232,9 @@ body.tablet .badges{right:70px}
 .cmd-cur img{width:56px;height:41px;object-fit:cover;border-radius:4px}
 .cmd-cur button{margin-left:auto;background:#333945;border-radius:8px;padding:8px 10px;font-size:13px}
 .cmd-cur [data-rm]{margin-left:6px}
+.fgrp{display:flex;align-items:center;gap:8px}
+.fgrp>span{flex:none;min-width:60px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fgrp .fchip{padding:5px 12px;font-size:13px}
 .fchips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 4px}
 .fchip{background:#262a33;color:#fff;border-radius:999px;padding:6px 14px;font-size:14px;font-weight:700}
 .fchip.on{background:var(--accent);color:#000}
@@ -323,7 +326,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.21.1',APP_BUILD='2026-11-08';
+const APP_VERSION='1.22.0',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -660,6 +663,11 @@ function exportHistory(){
   else{const url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);done()}
 }
 let histFilter='all';   // 'all' or a bracket number; kept while you move around the history screens
+let histPl='all',histFmt='all',histRes='all';   // more filters: player count, format, solo result
+const HSORT='mtg-life-histsort';
+let histSort=(()=>{try{return {key:'date',dir:-1,...JSON.parse(localStorage.getItem(HSORT))}}catch(e){return{key:'date',dir:-1}}})();   // dir -1 = biggest/newest first
+const baseFmt=g=>String(g.format||'').replace(/ \(Solo\)$/,'');
+const gResult=g=>g.players.length===1&&g.finished?(g.players[0].result==='Winner'?'won':'lost'):'';
 /* Share the app: a large QR code of the address this app is running from, so anyone nearby can scan it and open it */
 function appUrl(){
   let u=location.href.split('#')[0].split('?')[0];
@@ -776,19 +784,36 @@ function openHistory(){
   const last=+localStorage.getItem(LASTEXP)||0;
   const present=[1,2,3,4,5].filter(b=>HIST.some(g=>g.bracket===b));   // brackets that actually occur in the saved games
   if(histFilter!=='all'&&!HIST.some(g=>g.bracket===histFilter))histFilter='all';   // nothing left in that bracket
-  const shown=HIST.filter(g=>histFilter==='all'||g.bracket===histFilter);
-  const rows=shown.slice().sort((a,b)=>b.startedAt-a.startedAt).map(g=>{
+  const plPresent=[...new Set(HIST.map(g=>g.players.length))].sort((a,b)=>a-b),fmtPresent=[...new Set(HIST.map(baseFmt))],hasSolo=HIST.some(g=>gResult(g));
+  if(histPl!=='all'&&!plPresent.includes(histPl))histPl='all';
+  if(histFmt!=='all'&&!fmtPresent.includes(histFmt))histFmt='all';
+  if(histRes!=='all'&&!hasSolo)histRes='all';
+  const shown=HIST.filter(g=>(histFilter==='all'||g.bracket===histFilter)&&(histPl==='all'||g.players.length===histPl)&&(histFmt==='all'||baseFmt(g)===histFmt)&&(histRes==='all'||gResult(g)===histRes));
+  const val={date:g=>g.startedAt,length:g=>g.seconds,players:g=>g.players.length}[histSort.key];
+  const rows=shown.slice().sort((a,b)=>(val(a)-val(b))*histSort.dir||b.startedAt-a.startedAt).map(g=>{
     const d=new Date(g.startedAt),w=g.players.find(p=>p.result==='Winner');
     return `<div class="hrow"><div class="t" data-open="${esc(g.id)}" style="cursor:pointer"><b>${esc(d.toLocaleDateString(undefined,{month:'short',day:'numeric'}))} · ${esc(g.format)}${g.bracket?' · B'+g.bracket:''}${g.players.length===1?'':' · '+g.players.length+' players'} · ${fmt(g.seconds)}</b><br><span style="color:var(--muted)">${g.finished?(g.players.length===1?(w?'Won':'Defeated'):w?'Winner: '+esc(w.name):'Draw'):'Unfinished'}</span></div><button data-del="${esc(g.id)}" title="Delete">✕</button></div>`;
   }).join('');
-  const chips=present.length?`<div class="fchips">${['all',...present].map(f=>`<button class="fchip${f===histFilter?' on':''}" data-f="${f}">${f==='all'?'All':'B'+f}</button>`).join('')}</div>`:'';
-  const count=histFilter==='all'?`${HIST.length} game${HIST.length===1?'':'s'} saved on this phone.`:`Showing ${shown.length} of ${HIST.length} games (bracket ${histFilter}).`;
-  modal(`<h2>📒 Game history</h2><p class="hint">${count} ${last?'Last exported '+esc(new Date(last).toLocaleDateString())+'.':'Not exported yet.'}${histFilter==='all'?'':' Export includes all games.'}</p>${chips}
+  const row=(label,key,cur,opts)=>`<div class="fgrp"><span>${label}</span><div class="fchips">${opts.map(([v,t])=>`<button class="fchip${String(v)===String(cur)?' on':''}" data-k="${key}" data-v="${v}">${t}</button>`).join('')}</div></div>`;
+  const arrow=histSort.dir<0?'↓':'↑';
+  const chips=row('Sort','sort',histSort.key,[['date','Date'+(histSort.key==='date'?' '+arrow:'')],['length','Length'+(histSort.key==='length'?' '+arrow:'')],['players','Players'+(histSort.key==='players'?' '+arrow:'')]])
+    +(plPresent.length>1?row('Players','pl',histPl,[['all','All'],...plPresent.map(n=>[n,n===1?'Solo':n])]):'')
+    +(fmtPresent.length>1?row('Format','fmt',histFmt,[['all','All'],...fmtPresent.map(f=>[f,esc(f)])]):'')
+    +(present.length?row('Bracket','br',histFilter,[['all','All'],...present.map(b=>[b,'B'+b])]):'')
+    +(hasSolo?row('Solo','res',histRes,[['all','All'],['won','Won'],['lost','Lost']]):'');
+  const filtered=shown.length!==HIST.length;
+  const count=filtered?`Showing ${shown.length} of ${HIST.length} games.`:`${HIST.length} game${HIST.length===1?'':'s'} saved on this phone.`;
+  modal(`<h2>📒 Game history</h2><p class="hint">${count} ${last?'Last exported '+esc(new Date(last).toLocaleDateString())+'.':'Not exported yet.'}${filtered?' Export includes all games.':''}</p>${chips}
 <div>${rows||'<p class="hint">Finished games appear here automatically.</p>'}</div>
 <div class="histbtns"><button class="big" id="exp"${HIST.length?'':' disabled'}>Export CSV</button><button class="big" style="margin-top:8px" id="x">Close</button></div>`,c=>{
     c.querySelector('#x').onclick=closeModal;
     c.querySelector('#exp').onclick=exportHistory;
-    c.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{histFilter=b.dataset.f==='all'?'all':+b.dataset.f;openHistory()});
+    c.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
+      const k=b.dataset.k,v=b.dataset.v,num=v==='all'?'all':+v;
+      if(k==='sort'){histSort=histSort.key===v?{key:v,dir:-histSort.dir}:{key:v,dir:-1};try{localStorage.setItem(HSORT,JSON.stringify(histSort))}catch(e){}}   // tap the active sort again to flip it
+      else if(k==='br')histFilter=num;else if(k==='pl')histPl=num;else if(k==='fmt')histFmt=v;else if(k==='res')histRes=v;
+      openHistory();
+    });
     c.querySelectorAll('[data-open]').forEach(t=>t.onclick=()=>openSavedSummary(t.dataset.open));
     c.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
       if(!confirm('Delete this game from your history?'))return;
