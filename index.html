@@ -42,6 +42,8 @@ body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!imp
 .crow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;background:#1c2029;border:1px solid #2b303b;border-radius:12px;padding:5px 6px}
 .crow .pill{flex:none;min-width:32px;height:24px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
 .crow .oin{display:block;width:100%;box-sizing:border-box;background:#0f1115;color:#fff;border:1px solid #3b4150;border-radius:8px;padding:5px 8px;font-size:16px;margin-top:4px}
+.crow .thumb{flex:none;width:40px;height:40px;border-radius:9px;border:2px solid #fff;background-size:cover;background-position:center}
+.cmdr-ov.full .thumb{width:48px;height:48px;border-radius:10px}
 .crow .ocmd{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.9em;color:var(--muted)}
 .crow .ocx{flex:none;width:24px;height:24px;border-radius:50%;background:#2b303b;color:#fff;font-size:12px}
 .crow .ores{flex:1 1 100%}
@@ -127,6 +129,7 @@ body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!imp
 .sw .note{flex-basis:100%;font-size:12px;color:var(--muted);min-height:16px}
 .sw input{width:44px;height:36px;border:0;background:none;padding:0}
 .chip{display:flex;align-items:center;gap:5px;height:38px;padding:0 10px;border-radius:999px;background:rgba(0,0,0,.5);font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;touch-action:manipulation}
+.chip i.art{width:26px;height:26px;margin-left:-4px;background-size:cover;background-position:center;border-width:2px}
 .chip i{width:12px;height:12px;border-radius:50%;display:block;border:2px solid rgba(255,255,255,.8)}
 .chip:active{background:rgba(0,0,0,.75)}.chip.lethal{background:var(--danger)}
 .chip small{opacity:.7;font-size:11px;font-weight:500}
@@ -337,7 +340,7 @@ body.solo .cdmg,body.solo .badges{right:90px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.23.0',APP_BUILD='2026-11-08';
+const APP_VERSION='1.23.1',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -938,7 +941,7 @@ function update(){
     if(MODES[S.mode].cmdr)srcs().forEach((o,j)=>{
       [['c',p.cmdr,0],...(o.cmds.length>1?[['d',p.cmdrB,1]]:[])].forEach(([pre,arr,k])=>{
         if(!arr[j])return;  // hidden until this commander has dealt damage (add the first point from the ☰ menu)
-        const c=el('button','chip'+(arr[j]>=21?' lethal':''),`<i style="background:${colorOf(j)}"></i><span>${arr[j]}</span>`+(o.cmds.length>1?`<small>${k?'B':'A'}</small>`:'')+(j===i?'<small>you</small>':''));
+        const art=o.cmds[k]&&o.cmds[k].art,c=el('button','chip'+(arr[j]>=21?' lethal':''),(art?`<i class="art" style="background-image:url('${art.replace(/'/g,'%27')}');border-color:${colorOf(j)}"></i>`:`<i style="background:${colorOf(j)}"></i>`)+`<span>${arr[j]}</span>`+(o.cmds.length>1?`<small>${k?'B':'A'}</small>`:'')+(j===i?'<small>you</small>':''));
         c.title='Commander damage from '+(o.cmds[k]?o.cmds[k].name:o.name);
         let t,held=false;
         c.addEventListener('pointerdown',e=>{e.stopPropagation();held=false;t=setTimeout(()=>{held=true;cmdrAdjust(i,pre+j,-1)},500)});
@@ -1084,6 +1087,8 @@ function openCmdr(i){
         const col=colorOf(j);
         row.innerHTML='<div class="pill"></div><div class="lbl"></div><div class="stp"><button class="minus">−</button><div class="cnt"><span class="val"></span><span class="of">of 21</span></div><button class="plus">+</button></div>';
         const pill=row.querySelector('.pill');pill.textContent='P'+(j+1);pill.style.background=col;pill.style.color=isLight(col)?'#111':'#fff';
+        const art=o.cmds[k]&&o.cmds[k].art;
+        if(art){const th=el('div','thumb');th.style.backgroundImage='url("'+art.replace(/"/g,'%22')+'")';th.style.borderColor=col;row.querySelector('.lbl').before(th)}   // the commander's art
         let oppRes=null;
         if(isOpp){   // an opponent added for tracking: name typed in, commander searched on Scryfall like a player's own
           const lb=row.querySelector('.lbl');
