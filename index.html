@@ -167,6 +167,11 @@ body.tablet .gear{bottom:6px;right:6px}
 body.tablet .cbtn{bottom:66px;right:6px}
 body.tablet .cdmg{right:70px}
 body.tablet .badges{right:70px}
+/* a solo game has one big panel: bigger corner buttons */
+body.solo .gear,body.solo .cbtn{width:68px;height:68px;font-size:32px}
+body.solo .gear{bottom:10px;right:10px}
+body.solo .cbtn{bottom:86px;right:10px}
+body.solo .cdmg,body.solo .badges{right:90px}
 .status{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 10px;text-align:center;z-index:5;pointer-events:none}
 .status .icon{font-size:min(30vw,26vh);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
 .panel.n5 .status .icon,.panel.n6 .status .icon{font-size:min(22vw,18vh)}
@@ -327,7 +332,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.22.3',APP_BUILD='2026-11-08';
+const APP_VERSION='1.22.4',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -361,6 +366,7 @@ const pcOf=P=>P.querySelector(':scope>.pc')||P;
 let ROT=0;   // degrees the board is turned so it stays fixed to the phone (0 when upright)
 const ro=typeof ResizeObserver==='function'?new ResizeObserver(es=>es.forEach(e=>layoutPC(e.target))):null;
 function render(){
+  document.body.classList.toggle('solo',S.players.length===1);
   ro&&ro.disconnect();
   $('rowTop').innerHTML='';$('rowBot').innerHTML='';panels.length=0;
   const n=S.players.length,topN=Math.floor(n/2);
@@ -1064,6 +1070,7 @@ function openCmdr(i){
   const rows=ov.querySelector('.rows');
   const draw=()=>{
     rows.innerHTML='';
+    (S.opps||[]).forEach((o,k)=>{if(!o.custom)o.name='Opponent '+(k+1)});   // default names stay numbered after one is removed
     srcs().forEach((o,j)=>{
       const isOpp=j>=S.players.length;
       for(let k=0;k<Math.max(1,o.cmds.length);k++){
@@ -1074,9 +1081,9 @@ function openCmdr(i){
         const pill=row.querySelector('.pill');pill.textContent='P'+(j+1);pill.style.background=col;pill.style.color=isLight(col)?'#111':'#fff';
         if(isOpp){   // an opponent added for tracking: name and commander can be typed in
           const lb=row.querySelector('.lbl');
-          lb.innerHTML='From <input class="oin" maxlength="16" placeholder="Opponent" autocomplete="off" autocorrect="off" spellcheck="false"><input class="oin" maxlength="40" placeholder="Their commander (optional)" autocomplete="off" autocorrect="off" spellcheck="false">';
-          const [ni,ci]=lb.querySelectorAll('input');ni.value=o.name;ci.value=o.cmds[0]?o.cmds[0].name:'';
-          ni.oninput=()=>{o.name=ni.value.trim()||('Opponent '+j);update()};
+          lb.innerHTML='From <input class="oin" maxlength="16" autocomplete="off" autocorrect="off" spellcheck="false"><input class="oin" maxlength="40" placeholder="Their commander (optional)" autocomplete="off" autocorrect="off" spellcheck="false">';
+          const [ni,ci]=lb.querySelectorAll('input');ni.placeholder='Opponent '+j;ni.value=o.custom?o.name:'';ci.value=o.cmds[0]?o.cmds[0].name:'';   // greyed-out default until a name is typed
+          ni.oninput=()=>{const v=ni.value.trim();o.custom=!!v;o.name=v||('Opponent '+j);update()};
           ci.oninput=()=>{const v=ci.value.trim();o.cmds=v?[{name:v}]:[];update()};
         }else row.querySelector('.lbl').innerHTML='From '+(j===i?'myself ('+esc(o.name)+')':esc(o.name))+(dead(o)?' (defeated)':'')+(o.cmds[k]?'<small>'+esc(o.cmds[k].name)+'</small>':'');
         row.querySelector('.val').textContent=val;
