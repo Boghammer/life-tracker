@@ -344,7 +344,7 @@ body.solo .cdmg,body.solo .badges{right:90px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.23.3',APP_BUILD='2026-11-08';
+const APP_VERSION='1.24.0',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -889,6 +889,13 @@ function holdPop(t,done){
   ['pointerup','pointerleave','pointercancel'].forEach(ev=>t.addEventListener(ev,cancel));
   t.addEventListener('contextmenu',e=>e.preventDefault());
 }
+/* order of the commander-damage chips on a panel: clockwise from its owner (the next player's commander first, then around the
+   table), the owner's own commander last. In a solo game: the opponents in the order they were added, then your own. */
+function chipOrder(i){
+  if(isSolo())return srcs().map((o,j)=>j).slice(1).concat(0);
+  const t=turnOrder(),pos=t.indexOf(i);
+  return t.slice(pos+1).concat(t.slice(0,pos)).concat(i);
+}
 const overLimit=p=>p.life<=0||p.poison>=10||p.cmdr.some(v=>v>=21)||p.cmdrB.some(v=>v>=21);
 /* "Can't lose the game" (Platinum Angel and friends): while it's on, life/poison/commander damage can go past the usual
    limits without eliminating the player. Conceding and other "out" reasons still apply. Turning it off while a limit is
@@ -942,7 +949,7 @@ function update(){
     if(champ&&!cs2){const sp=makeSparkles('Winner!','champ-sp',true,isLight(colorOf(i))&&!p.cmds.length);const fb=sp.querySelector('.first');fb.title='Game summary graph';fb.insertAdjacentHTML('beforeend','<div style="font-size:2.6em;line-height:1.1;margin-top:2px">📊</div>');fb.onclick=openSummary;pcOf(P).append(sp)}
     else if(!champ&&cs2)cs2.remove();
     const cd=P.querySelector('.cdmg');cd.innerHTML='';
-    if(MODES[S.mode].cmdr)srcs().forEach((o,j)=>{
+    if(MODES[S.mode].cmdr)chipOrder(i).forEach(j=>{const o=srcs()[j];
       [['c',p.cmdr,0],...(o.cmds.length>1?[['d',p.cmdrB,1]]:[])].forEach(([pre,arr,k])=>{
         if(!arr[j])return;  // hidden until this commander has dealt damage (add the first point from the ☰ menu)
         const art=o.cmds[k]&&o.cmds[k].art,c=el('button','chip'+(arr[j]>=21?' lethal':''),(art?`<i class="art" style="background-image:url('${art.replace(/'/g,'%27')}');border-color:${colorOf(j)}"></i>`:`<i style="background:${colorOf(j)}"></i>`)+`<span>${arr[j]}</span>`+(o.cmds.length>1?`<small>${k?'B':'A'}</small>`:''));
