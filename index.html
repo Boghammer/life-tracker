@@ -182,6 +182,12 @@ body.solo .gear,body.solo .cbtn{width:68px;height:68px;font-size:32px}
 body.solo .gear{bottom:10px;right:10px}
 body.solo .cbtn{bottom:86px;right:10px}
 body.solo .cdmg,body.solo .badges{right:90px}
+/* solo: the name sits lower (clear of the status bar and rounded corner) and the type is a little bigger */
+body.solo .panel .name{top:22px;font-size:21px}
+body.solo .panel .name.editable{top:14px;padding:6px 0 14px}
+body.solo .panel .life{font-size:min(28vw,26vh)}
+body.solo .chip{height:42px;font-size:18px}
+body.solo .badge{font-size:18px}
 .status{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0 10px;text-align:center;z-index:5;pointer-events:none}
 .status .icon{font-size:min(30vw,26vh);line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.6))}
 .panel.n5 .status .icon,.panel.n6 .status .icon{font-size:min(22vw,18vh)}
@@ -346,7 +352,7 @@ body.solo .cdmg,body.solo .badges{right:90px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.24.1',APP_BUILD='2026-11-09';
+const APP_VERSION='1.24.2',APP_BUILD='2026-11-09';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
