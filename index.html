@@ -278,9 +278,9 @@ body.tablet .badges{right:70px}
 .log b{color:var(--text)}.log .pos b{color:#4ade80}.log .neg b{color:#f87171}
 
 /* modal (unrotated) */
-#modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:16px}
+#modal{overscroll-behavior:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;padding:16px}
 #modal.open{display:flex}
-#modal .card{background:#1a1d24;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:90vh;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
+#modal .card{background:#1a1d24;border-radius:18px;padding:18px;width:100%;max-width:420px;max-height:90vh;max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:none}   /* none, not contain: iOS still rubber-bands at the top and bottom with contain */
 #modal .card.bare{background:none;padding:0;max-width:420px;max-height:none;overflow:visible;display:flex;flex-direction:column;align-items:center;gap:10px}
 #modal .card.bare img{display:block;border-radius:14px;background:#0f1115;max-width:100%}
 #modal .card.bare .btns{display:flex;gap:10px;width:100%}
@@ -327,7 +327,7 @@ body.tablet .badges{right:70px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.22.2',APP_BUILD='2026-11-08';
+const APP_VERSION='1.22.3',APP_BUILD='2026-11-08';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1469,7 +1469,7 @@ $('bMenu').onclick=()=>{
   let n=S.players.length,mode=S.mode;
   modal(`<h2>Settings</h2>
 <h3>Format</h3><div class="grid" id="modes">${Object.entries(MODES).map(([k,m])=>`<button data-m="${k}" class="${k===mode?'on':''}">${m.label}<br><small>${m.life} life</small></button>`).join('')}</div>
-<h3>Players</h3><div class="grid" id="ns">${[1,2,3,4,5,6].map(x=>`<button data-n="${x}" class="${x===n?'on':''}">${x}${x===1?'<br><small>Solo</small>':''}</button>`).join('')}</div>
+<h3>Players</h3><div class="grid" id="ns">${[1,2,3,4,5,6].map(x=>`<button data-n="${x}" class="${x===n?'on':''}">${x}</button>`).join('')}</div>
 <button class="big" style="margin-top:18px" id="go">Start new game</button>
 <button class="big" style="margin-top:8px" id="same">New game, same players<br><small style="font-weight:500;color:var(--muted)">Keeps names, commanders and colors</small></button>
 <hr class="sep">
