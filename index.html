@@ -352,7 +352,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.24.2',APP_BUILD='2026-11-09';
+const APP_VERSION='1.24.3',APP_BUILD='2026-11-16';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -469,6 +469,23 @@ const CARD_PICKER={
   win:{base:'otag:alternate-win-condition',hint:'Cards that win the game. Search by name, or pick one below.',ph:'Search alternate-win cards…',title:n=>`🏆 ${n} wins`},
   lose:{base:'(o:"lose the game" or o:"loses the game") legal:commander',hint:'Start typing a card name. Every Commander-legal card whose text says "lose the game" or "loses the game" is searched.',ph:'Start typing a card name…',title:n=>`💀 ${n} loses`,typeFirst:true,limit:25}
 };
+/* Commander search on Scryfall. Universes Beyond prints carry another name (the Secret Lair "Rick, Steadfast Leader" is a print of
+   "Greymond, Avacyn's Stalwart"); Scryfall only matches those names when every print is searched, so ask for all English prints
+   and fold them back into one result per card, showing the printed name when that is what was typed. */
+async function searchCommanders(q,havePartner,have){
+  const base=havePartner?` f:commander (o:partner or t:background or o:"friends forever" or o:"doctor's companion")`:' is:commander';
+  const r=await fetch('https://api.scryfall.com/cards/search?unique=prints&include_multilingual=true&order=edhrec&q='+encodeURIComponent(q+base+' lang:en'));
+  if(!r.ok)return [];
+  const words=q.toLowerCase().split(/[^a-z0-9']+/).filter(Boolean),best=new Map();
+  (await r.json()).data.forEach(c=>{
+    const f=c.card_faces&&c.card_faces[0],img=(c.image_uris||(f&&f.image_uris)||{}).art_crop;if(!img)return;
+    const pn=c.printed_name&&c.printed_name!==c.name?c.printed_name:'',hit=!!pn&&words.length>0&&words.every(w=>pn.toLowerCase().includes(w));
+    const cur=best.get(c.oracle_id);
+    if(!cur||(hit&&!cur.hit))best.set(c.oracle_id,{hit,order:cur?cur.order:best.size,
+      res:{name:hit?pn:c.name,oracle:c.name,art:img,artist:c.artist||(f&&f.artist)||'',ill:c.illustration_id||(f&&f.illustration_id)||null}});
+  });
+  return [...best.values()].sort((a,b)=>a.order-b.order).map(x=>x.res).filter(c=>!have.some(x=>(x.oracle||x.name)===c.oracle)).slice(0,6);
+}
 async function fetchCards(text,base,limit=12){
   const r=await fetch('https://api.scryfall.com/cards/search?order=edhrec&q='+encodeURIComponent((text?text+' ':'')+base));
   return r.ok?(await r.json()).data.slice(0,limit):[];
@@ -520,7 +537,7 @@ function openArtPicker(i,k){
 <button class="big" style="margin-top:14px" id="x">Cancel</button>`,c=>{
     c.querySelector('#x').onclick=()=>{closeModal();openSheet(i)};
     const wrap=c.querySelector('#artwrap');
-    fetchArtworks(c0.name).then(tiles=>{
+    fetchArtworks(c0.oracle||c0.name).then(tiles=>{
       if(!tiles.length){wrap.innerHTML='<div class="hint">No artworks found.</div>';return}
       const grid=el('div','art-grid');
       tiles.forEach(t=>{
@@ -1133,15 +1150,12 @@ function openCmdr(i){
               tm=setTimeout(async()=>{
                 const my=++seq;oppRes.innerHTML='<div class="hint">Searching…</div>';
                 try{
-                  const r=await fetch('https://api.scryfall.com/cards/search?order=edhrec&q='+encodeURIComponent(o.cmds.length?q+` f:commander (o:partner or t:background or o:"friends forever" or o:"doctor's companion")`:q+' is:commander'));
+                  const cards=await searchCommanders(q,o.cmds.length>0,o.cmds);
                   if(my!==seq)return;
-                  if(!r.ok){oppRes.innerHTML='<div class="hint">No commanders found.</div>';return}
-                  const cards=(await r.json()).data.filter(c=>!o.cmds.some(x=>x.name===c.name)).slice(0,6);
                   oppRes.innerHTML='';
                   cards.forEach(c=>{
-                    const img=(c.image_uris||(c.card_faces&&c.card_faces[0].image_uris)||{}).art_crop;if(!img)return;
-                    const b=el('button','','<img alt=""><span></span>');b.querySelector('img').src=img;b.querySelector('span').textContent=c.name;
-                    b.onclick=()=>{o.cmds.push({name:c.name,art:img,artist:c.artist||(c.card_faces&&c.card_faces[0].artist)||'',ill:c.illustration_id||(c.card_faces&&c.card_faces[0]&&c.card_faces[0].illustration_id)||null});update();draw()};
+                    const b=el('button','','<img alt=""><span></span>');b.querySelector('img').src=c.art;b.querySelector('span').textContent=c.name;
+                    b.onclick=()=>{o.cmds.push({name:c.name,oracle:c.oracle,art:c.art,artist:c.artist,ill:c.ill});update();draw()};
                     oppRes.append(b);
                   });
                   if(!oppRes.children.length)oppRes.innerHTML='<div class="hint">No commanders found.</div>';
@@ -1287,15 +1301,12 @@ function openSheet(i){
     ct=setTimeout(async()=>{
       cres.innerHTML='<div class="hint">Searching…</div>';
       try{
-        const r=await fetch('https://api.scryfall.com/cards/search?order=edhrec&q='+encodeURIComponent(p.cmds.length?q+` f:commander (o:partner or t:background or o:"friends forever" or o:"doctor's companion")`:q+' is:commander'));
-        if(!r.ok){cres.innerHTML='<div class="hint">No commanders found.</div>';return}
-        const cards=(await r.json()).data.filter(c=>!p.cmds.some(x=>x.name===c.name)).slice(0,6);
-        cres.innerHTML='';
+        const cards=await searchCommanders(q,p.cmds.length>0,p.cmds);
+        cres.innerHTML=cards.length?'':'<div class="hint">No commanders found.</div>';
         cards.forEach(c=>{
-          const img=(c.image_uris||(c.card_faces&&c.card_faces[0].image_uris)||{}).art_crop;if(!img)return;
           const b=el('button','','<img alt=""><span></span>');
-          b.querySelector('img').src=img;b.querySelector('span').textContent=c.name;
-          b.onclick=()=>{p.cmds.push({name:c.name,art:img,artist:c.artist||(c.card_faces&&c.card_faces[0].artist)||'',ill:c.illustration_id||(c.card_faces&&c.card_faces[0]&&c.card_faces[0].illustration_id)||null});
+          b.querySelector('img').src=c.art;b.querySelector('span').textContent=c.name;
+          b.onclick=()=>{p.cmds.push({name:c.name,oracle:c.oracle,art:c.art,artist:c.artist,ill:c.ill});
             if(p.textColor&&lum(p.textColor)<0.35)p.textColor=null;   // art is dark: a dark text color chosen earlier goes back to Auto (white)
             update();openSheet(i)};
           cres.append(b);
