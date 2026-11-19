@@ -1,6 +1,6 @@
 # Bog Life: project notes
 
-Working notes for picking this project up in a fresh session. Last updated at v1.24.3 (2026-11-16).
+Working notes for picking this project up in a fresh session. Last updated at v1.24.4 (2026-11-16).
 
 ## What it is
 A no-build PWA life tracker for Magic: The Gathering (Commander-focused), installed to iPhone / iPad / Android home screens
@@ -78,6 +78,7 @@ then Deploy > Manage deployments > edit > New version (the URL stays the same). 
 - Windows CSV double-spacing fix (LF line endings), QR code scan, iPad button sizes.
 - iPhone: Settings title clear of the status bar (safe-area padding on popups), no rubber-band bounce in popups, solo player name clear of the top, Done bars flush with the bottom.
 - Solo game in real landscape orientation.
+- Android: the bottom bar (⚙️ and ⏸) was clipped on narrow screens; v1.24.4 tightens the docked bar under 480px wide. Checked at 320, 360 and 390 in the pane only.
 
 ## Ideas not built
 - Show commander art as a background on damage rows; order of rows in the ⚔️ window (still seat order).

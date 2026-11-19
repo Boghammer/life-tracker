@@ -220,6 +220,11 @@ body.solo .badge{font-size:18px}
 #bar[data-pos=start][data-o=v]{left:var(--il,env(safe-area-inset-left));right:auto;border-right:1px solid #333}
 #bar[data-pos=end][data-o=v]{left:auto;right:var(--ir,env(safe-area-inset-right));border-left:1px solid #333}
 #bar[data-pos=start][data-o=h] #timer,#bar[data-pos=end][data-o=h] #timer{font-size:18px;min-width:90px}
+@media (max-width:480px){
+  #bar[data-pos=start][data-o=h],#bar[data-pos=end][data-o=h]{gap:3px;padding:0 4px;justify-content:safe center}
+  #bar[data-pos=start][data-o=h] #timer,#bar[data-pos=end][data-o=h] #timer{font-size:16px;min-width:0;padding:0 4px}
+  #bar[data-pos=start][data-o=h] button,#bar[data-pos=end][data-o=h] button{min-width:0;flex-shrink:1}
+}
 #bar[data-o=v][data-pos=start] #timer,#bar[data-o=v][data-pos=end] #timer{min-width:0;padding:4px 0;font-size:13px}
 #bar[data-o=v][data-pos=start] #grip,#bar[data-o=v][data-pos=end] #grip{width:42px;height:22px}
 #bar[data-o=v][data-pos=start] #grip span,#bar[data-o=v][data-pos=end] #grip span{display:block;transform:rotate(90deg)}
@@ -352,7 +357,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.24.3',APP_BUILD='2026-11-16';
+const APP_VERSION='1.24.4',APP_BUILD='2026-11-18';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
