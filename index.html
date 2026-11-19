@@ -35,6 +35,10 @@ body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!imp
 @keyframes pulse{50%{box-shadow:inset 0 0 0 7px #fff,inset 0 0 70px 22px rgba(251,191,36,.9)}}
 .cbtn{position:absolute;bottom:54px;right:4px;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.35);font-size:21px;z-index:3;color:#fff}
 .cbtn[hidden]{display:none}
+.cbtn{touch-action:none}
+.cbtn.lifted{transform:scale(1.25);box-shadow:0 0 0 3px #fff}
+.cdline{position:fixed;inset:0;width:100%;height:100%;z-index:70;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+.cdtoast{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:71;pointer-events:none;background:rgba(15,17,21,.92);color:#fff;font-weight:700;font-size:16px;padding:10px 16px;border-radius:999px;box-shadow:0 4px 20px rgba(0,0,0,.5);white-space:nowrap}
 .cmdr-ov{position:absolute;inset:0;z-index:11;background:rgba(15,17,21,.97);display:flex;flex-direction:column;gap:5px;padding:7px;color:#fff;border:1px solid #3a3320;border-radius:14px}
 .cmdr-ov .ttl{font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);line-height:1.1}
 .cmdr-ov .sub{font-size:11px;color:var(--muted);margin-top:-3px}
@@ -365,7 +369,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.24.5',APP_BUILD='2026-11-18';
+const APP_VERSION='1.25.0',APP_BUILD='2026-11-18';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -437,7 +441,7 @@ function render(){
     };
     P.append(mk(-1),mk(1));
     const g=el('button','gear','☰');g.onclick=()=>openSheet(i);P.append(g);
-    const cb=el('button','cbtn','⚔️');cb.title='Commander damage';cb.onclick=()=>openCmdr(i);P.append(cb);
+    const cb=el('button','cbtn','⚔️');cb.title='Commander damage - hold and drag onto a player to give them 1';wireCmdrDrag(cb,i);P.append(cb);
     const pc=el('div','pc');while(P.firstChild)pc.append(P.firstChild);P.append(pc);
     if(window.ResizeObserver)new ResizeObserver(()=>P.toggleAttribute('data-wide',pc.clientWidth>pc.clientHeight)).observe(pc);   // wider than tall: see .cbtn
     P.dataset.top=i<topN?'1':'0';
@@ -1227,6 +1231,55 @@ function startTokenDrag(e,from,badge,key,icon){
   const up=ev=>{place(ev);finish(ev,true)},cancel=ev=>finish(ev,false);
   document.addEventListener('pointermove',place);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);
   place(e);
+}
+/* Commander damage button: tap = open the window. Hold it (or drag it) onto another player: that player takes 1 commander damage from the
+   player whose button you held (a partner commander asks which one). The button captures the pointer and stops the event, so the
+   +/- halves under it never see the press (no accidental +5), and the click that follows a drag is swallowed. */
+function wireCmdrDrag(btn,from){
+  let tm=null,on=false,x0=0,y0=0,target=-1,svg=null,swallow=false;
+  const ctr=()=>{const r=btn.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]};
+  const pick=(x,y)=>{const hit=document.elementsFromPoint(x,y).find(n=>n.classList&&n.classList.contains('panel'));const k=hit?panels.findIndex(q=>q.P===hit):-1;return k!==from?k:-1};
+  const draw=(x,y)=>{
+    const [cx,cy]=ctr();svg.querySelectorAll('line').forEach(l=>{l.setAttribute('x1',cx);l.setAttribute('y1',cy);l.setAttribute('x2',x);l.setAttribute('y2',y)});
+    target=pick(x,y);panels.forEach((q,k)=>q.P.classList.toggle('drop',k===target));
+  };
+  const begin=(x,y)=>{
+    if(on)return;on=true;swallow=true;clearTimeout(tm);tm=null;buzz();btn.classList.add('lifted');
+    svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','cdline');
+    svg.innerHTML='<defs><marker id="cdarrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto"><path d="M0 0L10 5L0 10z" fill="#fff"/></marker></defs><line stroke="#000" stroke-opacity=".55" stroke-width="11" stroke-linecap="round"/><line stroke="#fff" stroke-width="6" stroke-linecap="round" marker-end="url(#cdarrow)"/>';
+    document.body.append(svg);draw(x,y);
+  };
+  const clean=()=>{clearTimeout(tm);tm=null;if(svg){svg.remove();svg=null}btn.classList.remove('lifted');panels.forEach(q=>q.P.classList.remove('drop'));on=false;target=-1};
+  const deal=(k,key)=>{   // k = player who takes the damage, key = c<from> / d<from>
+    if(cmdrAdjust(k,key,1)){
+      const t=el('div','cdtoast','⚔️ '+esc(S.players[from].name)+' → '+esc(S.players[k].name)+': commander damage '+(key[0]==='d'?S.players[k].cmdrB:S.players[k].cmdr)[from]);
+      document.body.append(t);setTimeout(()=>t.remove(),1600);
+    }else buzz();
+  };
+  btn.addEventListener('pointerdown',e=>{
+    e.stopPropagation();swallow=false;
+    if(S.players.length<2||dead(S.players[from]))return;   // nothing to drag to (solo) or a defeated player's commander can't deal damage: plain tap only
+    x0=e.clientX;y0=e.clientY;try{btn.setPointerCapture(e.pointerId)}catch(err){}
+    tm=setTimeout(()=>begin(x0,y0),350);
+  });
+  btn.addEventListener('pointermove',e=>{
+    if(on)draw(e.clientX,e.clientY);
+    else if(tm&&Math.hypot(e.clientX-x0,e.clientY-y0)>12)begin(e.clientX,e.clientY);
+  });
+  btn.addEventListener('pointerup',e=>{
+    e.stopPropagation();
+    if(!on){clearTimeout(tm);tm=null;return}   // short press: the click below opens the window
+    const k=pick(e.clientX,e.clientY);clean();
+    if(k<0)return;
+    if(S.players[from].cmds.length>1)modal(`<h2>Which commander?</h2><p class="hint">${esc(S.players[from].name)} → ${esc(S.players[k].name)}</p>`+S.players[from].cmds.map((c,m)=>`<button class="big" style="margin-top:8px" data-m="${m}">${esc(c.name)}</button>`).join('')+'<button class="big" style="margin-top:8px" id="x">Cancel</button>',c=>{
+      c.querySelector('#x').onclick=closeModal;
+      c.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{closeModal();deal(k,(b.dataset.m==='0'?'c':'d')+from)});
+    });
+    else deal(k,'c'+from);
+  });
+  btn.addEventListener('pointercancel',clean);
+  btn.addEventListener('contextmenu',e=>e.preventDefault());
+  btn.addEventListener('click',e=>{if(swallow){swallow=false;e.stopPropagation();return}openCmdr(from)});
 }
 function adjust(i,d){
   record('life'+i);

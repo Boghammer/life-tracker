@@ -1,6 +1,6 @@
 # Bog Life: project notes
 
-Working notes for picking this project up in a fresh session. Last updated at v1.24.5 (2026-11-16).
+Working notes for picking this project up in a fresh session. Last updated at v1.25.0 (2026-11-16).
 
 ## What it is
 A no-build PWA life tracker for Magic: The Gathering (Commander-focused), installed to iPhone / iPad / Android home screens
@@ -55,7 +55,9 @@ which puts the ⚔️ button left of the ☰ button instead of above it.
 - **Rules:** `dead(p)`, `defeatCauses`, `placeOf`/`placeIcon`, ties (`tieInfo`/`openTie`), alternate win/lose by Scryfall card
   (`openCardPicker`), concede, empty library, can't-lose token (`holdPop`, hold 2 s to remove), speed token, bracket 1 to 5.
 - **Commander damage:** sources come from `srcs()` (all players, plus `S.opps` in a solo game). `cmdrAdjust(i,key,d)`; keys `c<j>` and `d<j>` (partner).
-  A defeated player's commander can't add damage. Chip order on a panel is clockwise from its owner (`chipOrder`).
+  A defeated player's commander can't add damage. **Drag to assign:** tap ⚔️ opens the window; hold it (350 ms) or drag it onto another player's panel
+  (`wireCmdrDrag`) and that player takes 1 commander damage from the player whose button was held (partner commander asks which). The button captures the pointer
+  and stops the event so the +/- halves never see it (no accidental +5). No drag in solo games or for a defeated attacker. Chip order on a panel is clockwise from its owner (`chipOrder`).
   `holdRepeat` gives hold-to-repeat on +/- buttons.
 - **Scryfall:** `searchCommanders()` searches all English prints and folds them to one result per card, so Universes Beyond printed names
   (e.g. "Rick, Steadfast Leader" is a print of "Greymond, Avacyn's Stalwart") are found. `fetchArtworks()` for "Change art".
@@ -79,6 +81,7 @@ then Deploy > Manage deployments > edit > New version (the URL stays the same). 
 - Windows CSV double-spacing fix (LF line endings), QR code scan, iPad button sizes.
 - iPhone: Settings title clear of the status bar (safe-area padding on popups), no rubber-band bounce in popups, solo player name clear of the top, Done bars flush with the bottom.
 - Solo game in real landscape orientation.
+- Hold-and-drag on the ⚔️ button with a real finger (tested only with simulated and mouse pointer events in the pane): line follows the finger, no +5 life.
 - Android: the bottom bar (⚙️ and ⏸) was clipped on narrow screens; v1.24.4 tightens the docked bar under 480px wide. Checked at 320, 360 and 390 in the pane only.
 
 ## Ideas not built
