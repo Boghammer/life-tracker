@@ -313,7 +313,8 @@ body.solo .badge{font-size:18px}
 .toggles{display:flex;flex-wrap:wrap;gap:8px}
 .toggles button{flex:1 1 40%;padding:12px 8px;border-radius:10px;background:#20242c;font-weight:600}
 .toggles button.on{background:var(--accent);color:#000}
-#dxg button.on,#dxgo.dxgreen{background:#22c55e;color:#000}
+#dxg button.on,.sheet.full .sdone.dxgreen{background:#22c55e;color:#000}
+.sheet.full .sdone.dxgreen{height:auto;min-height:50px;padding:8px 12px;line-height:1.25}
 #dxp.dxhl{background:var(--accent);color:#000}
 #dxm:disabled{opacity:.35;cursor:not-allowed}
 .log{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -370,7 +371,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.27.0',APP_BUILD='2026-11-19';
+const APP_VERSION='1.28.0',APP_BUILD='2026-11-19';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1318,7 +1319,7 @@ function openSheet(i){
   const drainOk=S.players.length>1&&!dead(p)&&!gameIsOver;   // not in solo games, and not for a defeated player
   if(drainOk){
     h+=`<h3>Each opponent loses life</h3><div class="ctr"><div class="lbl">🩸 Life lost<small>by each opponent still in the game</small></div><div class="stepper"><button id="dxm">−</button><span class="val" id="dxv"></span><button id="dxp">+</button></div></div>`;
-    h+='<div class="toggles" id="dxg"><button data-g="none">You gain nothing</button><button data-g="same">You gain the same amount</button><button data-g="total">You gain the total lost</button></div><p class="hint" id="dxh"></p><div class="toggles"><button id="dxgo"></button></div>';
+    h+='<div class="toggles" id="dxg"><button data-g="none">You gain nothing</button><button data-g="same">You gain the same amount</button><button data-g="total">You gain the total lost</button></div><p class="hint" id="dxh"></p>';
   }
   const ctr=(key,label,sub,val,lethal)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1">+</button></div></div>`;
   h+='<h3>Panel color</h3><div class="sw">'+SWATCHES.map(c=>`<button data-c="${c}" class="${colorOf(i).toLowerCase()===c?'on':''}${takenBy(c,i)>=0?' taken':''}" style="background:${c}" title="${takenBy(c,i)>=0?'Used by '+esc(S.players[takenBy(c,i)].name):''}"></button>`).join('')+`<input type="color" id="cc" value="${colorOf(i)}" title="Custom color"><div class="note" id="cnote"></div></div>`;
@@ -1342,8 +1343,9 @@ function openSheet(i){
   nm.oninput=()=>{p.name=nm.value.trim()?nm.value:defName;update()};
   const restore=()=>{if(!nm.value.trim()){p.name=defName;nm.value=defName}else{const c=cleanName(nm.value);if(c!==nm.value){p.name=c;nm.value=c}}};
   nm.onblur=()=>{restore();update()};
+  let applyDrain=null;
   const closeIt=()=>{restore();closeSheet();update()};
-  sh.querySelector('#cl').onclick=closeIt;sh.querySelector('#dn').onclick=closeIt;
+  sh.querySelector('#cl').onclick=closeIt;sh.querySelector('#dn').onclick=()=>{if(applyDrain)applyDrain();closeIt()};
   sh.querySelectorAll('[data-art]').forEach(b=>b.onclick=()=>{closeSheet();openArtPicker(i,+b.dataset.art)});
   sh.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{p.cmds.splice(+b.dataset.rm,1);update();openSheet(i)});
   let ct;const cres=sh.querySelector('#cres');
@@ -1390,18 +1392,18 @@ function openSheet(i){
       sh.querySelector('#dxp').classList.toggle('dxhl',drainX===0);
       sh.querySelectorAll('#dxg button').forEach(b=>{b.disabled=!live;b.classList.toggle('on',live&&b.dataset.g===drainMode)});
       sh.querySelector('#dxh').textContent=!n?'No opponents are left in the game.':drainX?`${n} opponent${n>1?'s':''} lose ${drainX} each (${drainX*n} in total).`+(g?` You gain ${g}.`:''):'Press + to set how much life each opponent loses.';
-      const go=sh.querySelector('#dxgo');go.disabled=!live;go.classList.toggle('dxgreen',live);go.textContent=live?'Apply: opponents lose '+drainX+(g?' · you gain '+g:''):'Apply';
+      const go=sh.querySelector('#dn');go.classList.toggle('dxgreen',live);go.textContent=live?'Done · opponents lose '+drainX+(g?' · you gain '+g:''):'Done';
     };
     holdRepeat(sh.querySelector('#dxm'),()=>{if(drainX<=0)return false;drainX--;paint();return true});
     holdRepeat(sh.querySelector('#dxp'),()=>{if(drainX>=999)return false;drainX++;paint();return true});
     sh.querySelectorAll('#dxg button').forEach(b=>b.onclick=()=>{drainMode=b.dataset.g;paint()});
-    sh.querySelector('#dxgo').onclick=()=>{
+    applyDrain=()=>{   // runs when Done is pressed (the ✕ closes without applying)
       const opps=oppIdx();if(!opps.length||drainX<1)return;
       const g=gainFor(drainX,opps.length);   // counted from who lost life, so it is the full total even when an opponent ends at 0 or below
       record('drain'+Date.now());   // one undo step for the whole thing
       opps.forEach(j=>{const q=S.players[j];q.life-=drainX;logEvent(q,'life lost to '+p.name,-drainX,q.life)});
       if(g){p.life+=g;logEvent(p,'life gained from opponents',g,p.life)}
-      buzz();closeSheet();update();   // straight back to the main screen
+      buzz();
     };
     paint();
   }

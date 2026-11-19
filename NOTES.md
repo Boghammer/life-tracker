@@ -1,6 +1,6 @@
 # Bog Life: project notes
 
-Working notes for picking this project up in a fresh session. Last updated at v1.27.0 (2026-11-19).
+Working notes for picking this project up in a fresh session. Last updated at v1.28.0 (2026-11-19).
 
 ## What it is
 A no-build PWA life tracker for Magic: The Gathering (Commander-focused), installed to iPhone / iPad / Android home screens
@@ -60,7 +60,7 @@ which puts the ⚔️ button left of the ☰ button instead of above it.
   the attacker); nothing is added until + is pressed. The button captures the pointer
   and stops the event so the +/- halves never see it (no accidental +5). No drag in solo games or for a defeated attacker. Chip order on a panel is clockwise from its owner (`chipOrder`).
   `holdRepeat` gives hold-to-repeat on +/- buttons.
-- **Each opponent loses life:** row in the player menu, right under the commander name(s) (`openSheet`, not in solo games or for a defeated player). Amount stepper (`drainX`, starts at 0 with only + lit; the choice and Apply stay disabled until it is 1 or more, then "You gain nothing" and Apply show green; Apply closes the menu) plus a gain choice
+- **Each opponent loses life:** row in the player menu, right under the commander name(s) (`openSheet`, not in solo games or for a defeated player). Amount stepper (`drainX`, starts at 0 with only + lit; the choice and Apply stay disabled until it is 1 or more, then "You gain nothing" is selected in green and the Done button turns green and reads "Done · opponents lose X · you gain Y"; Done applies it and closes, the ✕ closes without applying) plus a gain choice
   (`drainMode`: none / same amount / total lost = amount × opponents still in the game, counted even if their life ends at 0 or below). One undo step; both reset when the menu closes.
 - **Scryfall:** `searchCommanders()` searches all English prints and folds them to one result per card, so Universes Beyond printed names
   (e.g. "Rick, Steadfast Leader" is a print of "Greymond, Avacyn's Stalwart") are found. `fetchArtworks()` for "Change art".
