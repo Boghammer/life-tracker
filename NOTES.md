@@ -1,6 +1,6 @@
 # Bog Life: project notes
 
-Working notes for picking this project up in a fresh session. Last updated at v1.25.0 (2026-11-16).
+Working notes for picking this project up in a fresh session. Last updated at v1.25.1 (2026-11-16).
 
 ## What it is
 A no-build PWA life tracker for Magic: The Gathering (Commander-focused), installed to iPhone / iPad / Android home screens
@@ -56,7 +56,8 @@ which puts the ⚔️ button left of the ☰ button instead of above it.
   (`openCardPicker`), concede, empty library, can't-lose token (`holdPop`, hold 2 s to remove), speed token, bracket 1 to 5.
 - **Commander damage:** sources come from `srcs()` (all players, plus `S.opps` in a solo game). `cmdrAdjust(i,key,d)`; keys `c<j>` and `d<j>` (partner).
   A defeated player's commander can't add damage. **Drag to assign:** tap ⚔️ opens the window; hold it (350 ms) or drag it onto another player's panel
-  (`wireCmdrDrag`) and that player takes 1 commander damage from the player whose button was held (partner commander asks which). The button captures the pointer
+  (`wireCmdrDrag`) and the commander damage window opens for that player showing only the held player's commander(s) (`openCmdr(victim, only)`, turned toward
+  the attacker); nothing is added until + is pressed. The button captures the pointer
   and stops the event so the +/- halves never see it (no accidental +5). No drag in solo games or for a defeated attacker. Chip order on a panel is clockwise from its owner (`chipOrder`).
   `holdRepeat` gives hold-to-repeat on +/- buttons.
 - **Scryfall:** `searchCommanders()` searches all English prints and folds them to one result per card, so Universes Beyond printed names

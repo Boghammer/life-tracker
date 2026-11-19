@@ -37,9 +37,7 @@ body.rot #timer{min-width:0!important;padding:0 2px!important;font-size:15px!imp
 .cbtn[hidden]{display:none}
 .cbtn{touch-action:none}
 .cbtn.lifted{transform:scale(1.25);box-shadow:0 0 0 3px #fff}
-.cdline{position:fixed;inset:0;width:100%;height:100%;z-index:70;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
-.cdtoast{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:71;pointer-events:none;background:rgba(15,17,21,.92);color:#fff;font-weight:700;font-size:16px;padding:10px 16px;border-radius:999px;box-shadow:0 4px 20px rgba(0,0,0,.5);white-space:nowrap}
-.cmdr-ov{position:absolute;inset:0;z-index:11;background:rgba(15,17,21,.97);display:flex;flex-direction:column;gap:5px;padding:7px;color:#fff;border:1px solid #3a3320;border-radius:14px}
+.cdline{position:fixed;inset:0;width:100%;height:100%;z-index:70;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}.cmdr-ov{position:absolute;inset:0;z-index:11;background:rgba(15,17,21,.97);display:flex;flex-direction:column;gap:5px;padding:7px;color:#fff;border:1px solid #3a3320;border-radius:14px}
 .cmdr-ov .ttl{font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);line-height:1.1}
 .cmdr-ov .sub{font-size:11px;color:var(--muted);margin-top:-3px}
 .cmdr-ov .rows{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
@@ -369,7 +367,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.25.0',APP_BUILD='2026-11-18';
+const APP_VERSION='1.25.1',APP_BUILD='2026-11-18';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -441,7 +439,7 @@ function render(){
     };
     P.append(mk(-1),mk(1));
     const g=el('button','gear','☰');g.onclick=()=>openSheet(i);P.append(g);
-    const cb=el('button','cbtn','⚔️');cb.title='Commander damage - hold and drag onto a player to give them 1';wireCmdrDrag(cb,i);P.append(cb);
+    const cb=el('button','cbtn','⚔️');cb.title='Commander damage - hold and drag onto a player to add damage to them';wireCmdrDrag(cb,i);P.append(cb);
     const pc=el('div','pc');while(P.firstChild)pc.append(P.firstChild);P.append(pc);
     if(window.ResizeObserver)new ResizeObserver(()=>P.toggleAttribute('data-wide',pc.clientWidth>pc.clientHeight)).observe(pc);   // wider than tall: see .cbtn
     P.dataset.top=i<topN?'1':'0';
@@ -1068,7 +1066,7 @@ function restore(str){
   panels.forEach(x=>{clearTimeout(x.dt);x.delta=0;x.P.querySelector('.delta').classList.remove('show')});
   lastKey=null;update();
   if(sheetFor!=null)openSheet(sheetFor);
-  if(cmdrFor!=null)openCmdr(cmdrFor);
+  if(cmdrFor!=null)openCmdr(cmdrFor,cmdrOnly);
   syncHistoryButtons();buzz();
 }
 function undo(){if(!undoStack.length)return;redoStack.push(snap());restore(undoStack.pop())}
@@ -1121,19 +1119,21 @@ function startNameEdit(i){
   pcOf(P).append(inp);inp.focus();
 }
 /* quick commander-damage overlay: full screen, one player at a time (turned to face top-row players) */
-let cmdrFor=null;
-function closeCmdr(){document.querySelector('.cmdr-ov')?.remove();cmdrFor=null}
-function openCmdr(i){
-  closeCmdr();cmdrFor=i;
+let cmdrFor=null,cmdrOnly;
+function closeCmdr(){document.querySelector('.cmdr-ov')?.remove();cmdrFor=null;cmdrOnly=undefined}
+/* i = player who takes the damage. only (optional) = index of one player: show just that player's commander(s), turned toward them (opened by dragging their button) */
+function openCmdr(i,only){
+  closeCmdr();cmdrFor=i;cmdrOnly=only;
   const p=S.players[i],ov=el('div','cmdr-ov full');
-  if(faceAngle(i)===180)ov.style.transform='rotate(180deg)';   // players facing the top edge
+  if(faceAngle(only!==undefined?only:i)===180)ov.style.transform='rotate(180deg)';   // players facing the top edge
   ov.innerHTML='<div class="ttl">Commander damage</div><div class="sub"></div><div class="rows"></div><button class="done">Done</button>';
-  ov.querySelector('.sub').textContent='Damage taken by '+p.name;
+  ov.querySelector('.sub').textContent='Damage taken by '+p.name+(only!==undefined?' from '+srcs()[only].name:'');
   const rows=ov.querySelector('.rows');
   const draw=()=>{
     rows.innerHTML='';
     (S.opps||[]).forEach((o,k)=>{if(!o.custom)o.name='Opponent '+(k+1)});   // default names stay numbered after one is removed
     srcs().forEach((o,j)=>{
+      if(only!==undefined&&j!==only)return;
       const isOpp=j>=S.players.length;
       for(let k=0;k<Math.max(1,o.cmds.length);k++){
         const key=(k?'d':'c')+j,val=(k?p.cmdrB:p.cmdr)[j];
@@ -1232,8 +1232,8 @@ function startTokenDrag(e,from,badge,key,icon){
   document.addEventListener('pointermove',place);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);
   place(e);
 }
-/* Commander damage button: tap = open the window. Hold it (or drag it) onto another player: that player takes 1 commander damage from the
-   player whose button you held (a partner commander asks which one). The button captures the pointer and stops the event, so the
+/* Commander damage button: tap = open the window. Hold it (or drag it) onto another player: the commander damage window opens for that player
+   showing only the commander(s) of the player whose button you held, to add damage with +. The button captures the pointer and stops the event, so the
    +/- halves under it never see the press (no accidental +5), and the click that follows a drag is swallowed. */
 function wireCmdrDrag(btn,from){
   let tm=null,on=false,x0=0,y0=0,target=-1,svg=null,swallow=false;
@@ -1250,12 +1250,6 @@ function wireCmdrDrag(btn,from){
     document.body.append(svg);draw(x,y);
   };
   const clean=()=>{clearTimeout(tm);tm=null;if(svg){svg.remove();svg=null}btn.classList.remove('lifted');panels.forEach(q=>q.P.classList.remove('drop'));on=false;target=-1};
-  const deal=(k,key)=>{   // k = player who takes the damage, key = c<from> / d<from>
-    if(cmdrAdjust(k,key,1)){
-      const t=el('div','cdtoast','⚔️ '+esc(S.players[from].name)+' → '+esc(S.players[k].name)+': commander damage '+(key[0]==='d'?S.players[k].cmdrB:S.players[k].cmdr)[from]);
-      document.body.append(t);setTimeout(()=>t.remove(),1600);
-    }else buzz();
-  };
   btn.addEventListener('pointerdown',e=>{
     e.stopPropagation();swallow=false;
     if(S.players.length<2||dead(S.players[from]))return;   // nothing to drag to (solo) or a defeated player's commander can't deal damage: plain tap only
@@ -1270,12 +1264,7 @@ function wireCmdrDrag(btn,from){
     e.stopPropagation();
     if(!on){clearTimeout(tm);tm=null;return}   // short press: the click below opens the window
     const k=pick(e.clientX,e.clientY);clean();
-    if(k<0)return;
-    if(S.players[from].cmds.length>1)modal(`<h2>Which commander?</h2><p class="hint">${esc(S.players[from].name)} → ${esc(S.players[k].name)}</p>`+S.players[from].cmds.map((c,m)=>`<button class="big" style="margin-top:8px" data-m="${m}">${esc(c.name)}</button>`).join('')+'<button class="big" style="margin-top:8px" id="x">Cancel</button>',c=>{
-      c.querySelector('#x').onclick=closeModal;
-      c.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{closeModal();deal(k,(b.dataset.m==='0'?'c':'d')+from)});
-    });
-    else deal(k,'c'+from);
+    if(k>=0){buzz();openCmdr(k,from)}   // the commander damage window for that player, with only this player's commander(s) in it
   });
   btn.addEventListener('pointercancel',clean);
   btn.addEventListener('contextmenu',e=>e.preventDefault());
