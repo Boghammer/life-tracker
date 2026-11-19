@@ -367,7 +367,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.25.3',APP_BUILD='2026-11-19';
+const APP_VERSION='1.26.0',APP_BUILD='2026-11-19';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1300,8 +1300,8 @@ function cmdrAdjust(i,k,d){
 function logEvent(p,k,d,v){p.log.push({t:S.elapsed,d,life:v,k})}
 
 /* player settings: a full-screen view, one player at a time (kept upright: it has text fields) */
-let sheetFor=null;
-function closeSheet(){document.querySelector('.sheet')?.remove();sheetFor=null}
+let sheetFor=null,drainX=1,drainMode='none';   // "each opponent loses life" settings, reset when the menu closes
+function closeSheet(){document.querySelector('.sheet')?.remove();sheetFor=null;drainX=1;drainMode='none'}
 function openSheet(i){
   const p=S.players[i];
   const old=document.querySelector('.sheet'),y0=old?old.scrollTop:0;   // re-renders keep the scroll position
@@ -1320,6 +1320,11 @@ function openSheet(i){
   h+=ctr('poison','☠ Poison','lethal at 10',p.poison,p.poison>=10);
   h+=ctr('energy','⚡ Energy','',p.energy);
   h+=ctr('exp','✨ Experience','',p.exp);
+  const drainOk=S.players.length>1&&!dead(p)&&!gameIsOver;   // not in solo games, and not for a defeated player
+  if(drainOk){
+    h+=`<h3>Each opponent loses life</h3><div class="ctr"><div class="lbl">🩸 Life lost<small>by each opponent still in the game</small></div><div class="stepper"><button id="dxm">−</button><span class="val" id="dxv"></span><button id="dxp">+</button></div></div>`;
+    h+='<div class="toggles" id="dxg"><button data-g="none">You gain nothing</button><button data-g="same">You gain the same amount</button><button data-g="total">You gain the total lost</button></div><p class="hint" id="dxh"></p><div class="toggles"><button id="dxgo"></button></div>';
+  }
   h+='<h3>Tokens</h3><div class="toggles"><button id="tm" class="'+(S.monarch===i?'on':'')+'">👑 Monarch</button><button id="ti" class="'+(S.initiative===i?'on':'')+'">🏰 Initiative</button><button id="tb" class="'+(p.blessing?'on':'')+'">🏙️ City’s Blessing</button><button id="ts" class="'+(p.speed?'on':'')+'">🏎️ Start Your Engines!</button><button id="tsafe" class="'+(p.cantLose?'on':'')+'"'+(dead(p)&&!p.cantLose?' disabled':'')+'>🛡️ Can’t lose the game</button></div>';
   if(!dead(p)&&!gameIsOver&&(S.players.length===1||S.players.filter(q=>!dead(q)).length>1))
     h+='<h3>Game result</h3><div class="toggles"><button id="winbtn">🏆 Win the game…</button><button id="losebtn"'+(p.cantLose?' disabled':'')+'>💀 Lose the game…</button><button id="concedebtn">🏳️ Concede…</button><button id="drawbtn"'+(p.cantLose?' disabled':'')+'>📚 Drew from an empty library…</button></div><p class="hint">For cards that win or lose the game outright, when a player concedes, or when someone draws from an empty library. Life totals stay as they are.</p>'+(p.cantLose?'<p class="hint">'+esc(p.name)+' can’t lose the game while protected, so Lose the game and Drew from an empty library are off. Conceding is always allowed. If the effect has ended, turn off the Can’t lose token.</p>':'');
@@ -1371,6 +1376,29 @@ function openSheet(i){
       update();openSheet(i);
     };
   });
+  if(drainOk){
+    const oppIdx=()=>S.players.map((q,j)=>j).filter(j=>j!==i&&!dead(S.players[j]));   // opponents still in the game; their life may already be 0 or less
+    const gainFor=(x,n)=>drainMode==='same'?x:drainMode==='total'?x*n:0;
+    const paint=()=>{
+      const n=oppIdx().length,g=gainFor(drainX,n);
+      sh.querySelector('#dxv').textContent=drainX;
+      sh.querySelectorAll('#dxg button').forEach(b=>b.classList.toggle('on',b.dataset.g===drainMode));
+      sh.querySelector('#dxh').textContent=n?`${n} opponent${n>1?'s':''} lose ${drainX} each (${drainX*n} in total).`+(g?` You gain ${g}.`:''):'No opponents are left in the game.';
+      const go=sh.querySelector('#dxgo');go.disabled=!n;go.textContent='Apply: opponents lose '+drainX+(g?' · you gain '+g:'');
+    };
+    holdRepeat(sh.querySelector('#dxm'),()=>{if(drainX<=1)return false;drainX--;paint();return true});
+    holdRepeat(sh.querySelector('#dxp'),()=>{if(drainX>=999)return false;drainX++;paint();return true});
+    sh.querySelectorAll('#dxg button').forEach(b=>b.onclick=()=>{drainMode=b.dataset.g;paint()});
+    sh.querySelector('#dxgo').onclick=()=>{
+      const opps=oppIdx();if(!opps.length)return;
+      const g=gainFor(drainX,opps.length);   // counted from who lost life, so it is the full total even when an opponent ends at 0 or below
+      record('drain'+Date.now());   // one undo step for the whole thing
+      opps.forEach(j=>{const q=S.players[j];q.life-=drainX;logEvent(q,'life lost to '+p.name,-drainX,q.life)});
+      if(g){p.life+=g;logEvent(p,'life gained from opponents',g,p.life)}
+      drainMode='none';buzz();update();openSheet(i);
+    };
+    paint();
+  }
   sh.querySelector('#tm').onclick=()=>{record('tok');S.monarch=S.monarch===i?null:i;update();openSheet(i)};
   sh.querySelector('#ti').onclick=()=>{record('tok');S.initiative=S.initiative===i?null:i;update();openSheet(i)};
   sh.querySelector('#tb').onclick=()=>{record('tok');p.blessing=!p.blessing;update();openSheet(i)};
