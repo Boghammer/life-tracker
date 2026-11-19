@@ -1,6 +1,6 @@
 # Bog Life: project notes
 
-Working notes for picking this project up in a fresh session. Last updated at v1.24.4 (2026-11-16).
+Working notes for picking this project up in a fresh session. Last updated at v1.24.5 (2026-11-16).
 
 ## What it is
 A no-build PWA life tracker for Magic: The Gathering (Commander-focused), installed to iPhone / iPad / Android home screens
@@ -50,7 +50,8 @@ Open http://localhost:8765/index.html (the Claude browser pane works; the server
   commanders `{name, oracle, art, artist, ill}`, `log`, `defeat`, `out`, `cantLose`, `safeSpans`, ...), monarch, initiative, round/rounds, first,
   bracket, `altWin`, `opps` (solo opponents), gameId, elapsed. Saved to `localStorage` key `mtg-life-v1`.
 - **Layout:** `#stage` > `#app` (top and bottom rows of `.panel`s, each with a `.pc` content wrapper) plus `#bar`. The board is counter-rotated by
-  `ROT` so panels stay fixed to the phone; `layoutPC` turns each panel's text toward its nearest outer edge. `body.tablet` and `body.solo` enlarge corner buttons.
+  `ROT` so panels stay fixed to the phone; `layoutPC` turns each panel's text toward its nearest outer edge. `body.tablet` and `body.solo` enlarge corner buttons (44px phone, 60 tablet, 76 solo). A panel wider than tall gets `data-wide` (ResizeObserver on `.pc`),
+which puts the ⚔️ button left of the ☰ button instead of above it.
 - **Rules:** `dead(p)`, `defeatCauses`, `placeOf`/`placeIcon`, ties (`tieInfo`/`openTie`), alternate win/lose by Scryfall card
   (`openCardPicker`), concede, empty library, can't-lose token (`holdPop`, hold 2 s to remove), speed token, bracket 1 to 5.
 - **Commander damage:** sources come from `srcs()` (all players, plus `S.opps` in a solo game). `cmdrAdjust(i,key,d)`; keys `c<j>` and `d<j>` (partner).
