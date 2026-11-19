@@ -367,7 +367,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.26.0',APP_BUILD='2026-11-19';
+const APP_VERSION='1.26.1',APP_BUILD='2026-11-19';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1312,6 +1312,11 @@ function openSheet(i){
   h+='<h3>Commander</h3>';
   p.cmds.forEach((c,k)=>{h+=`<div class="cmd-cur"><img src="${esc(c.art)}" alt=""><span>${esc(c.name)}<br><small style="color:var(--muted)">art: ${esc(c.artist||'')}</small></span><button data-art="${k}">Change art</button><button data-rm="${k}">Remove</button></div>`});
   if(p.cmds.length<2)h+=`<input class="cmd-search" id="cq" placeholder="${p.cmds.length?'Add partner / background…':'Search commander (type, or tap 🎤)…'}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search"><div class="cmd-res" id="cres"></div>`;
+  const drainOk=S.players.length>1&&!dead(p)&&!gameIsOver;   // not in solo games, and not for a defeated player
+  if(drainOk){
+    h+=`<h3>Each opponent loses life</h3><div class="ctr"><div class="lbl">🩸 Life lost<small>by each opponent still in the game</small></div><div class="stepper"><button id="dxm">−</button><span class="val" id="dxv"></span><button id="dxp">+</button></div></div>`;
+    h+='<div class="toggles" id="dxg"><button data-g="none">You gain nothing</button><button data-g="same">You gain the same amount</button><button data-g="total">You gain the total lost</button></div><p class="hint" id="dxh"></p><div class="toggles"><button id="dxgo"></button></div>';
+  }
   const ctr=(key,label,sub,val,lethal)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1">+</button></div></div>`;
   h+='<h3>Panel color</h3><div class="sw">'+SWATCHES.map(c=>`<button data-c="${c}" class="${colorOf(i).toLowerCase()===c?'on':''}${takenBy(c,i)>=0?' taken':''}" style="background:${c}" title="${takenBy(c,i)>=0?'Used by '+esc(S.players[takenBy(c,i)].name):''}"></button>`).join('')+`<input type="color" id="cc" value="${colorOf(i)}" title="Custom color"><div class="note" id="cnote"></div></div>`;
   h+='<h3>Text color</h3><div class="sw"><button data-tc="" class="auto'+(p.textColor?'':' on')+'">Auto</button>'+TEXT_SWATCHES.map(c=>`<button data-tc="${c}" class="${(p.textColor||'').toLowerCase()===c?'on':''}" style="background:${c}"></button>`).join('')+`<input type="color" id="tcc" value="${p.textColor||'#ffffff'}" title="Custom text color"></div>`;
@@ -1320,11 +1325,6 @@ function openSheet(i){
   h+=ctr('poison','☠ Poison','lethal at 10',p.poison,p.poison>=10);
   h+=ctr('energy','⚡ Energy','',p.energy);
   h+=ctr('exp','✨ Experience','',p.exp);
-  const drainOk=S.players.length>1&&!dead(p)&&!gameIsOver;   // not in solo games, and not for a defeated player
-  if(drainOk){
-    h+=`<h3>Each opponent loses life</h3><div class="ctr"><div class="lbl">🩸 Life lost<small>by each opponent still in the game</small></div><div class="stepper"><button id="dxm">−</button><span class="val" id="dxv"></span><button id="dxp">+</button></div></div>`;
-    h+='<div class="toggles" id="dxg"><button data-g="none">You gain nothing</button><button data-g="same">You gain the same amount</button><button data-g="total">You gain the total lost</button></div><p class="hint" id="dxh"></p><div class="toggles"><button id="dxgo"></button></div>';
-  }
   h+='<h3>Tokens</h3><div class="toggles"><button id="tm" class="'+(S.monarch===i?'on':'')+'">👑 Monarch</button><button id="ti" class="'+(S.initiative===i?'on':'')+'">🏰 Initiative</button><button id="tb" class="'+(p.blessing?'on':'')+'">🏙️ City’s Blessing</button><button id="ts" class="'+(p.speed?'on':'')+'">🏎️ Start Your Engines!</button><button id="tsafe" class="'+(p.cantLose?'on':'')+'"'+(dead(p)&&!p.cantLose?' disabled':'')+'>🛡️ Can’t lose the game</button></div>';
   if(!dead(p)&&!gameIsOver&&(S.players.length===1||S.players.filter(q=>!dead(q)).length>1))
     h+='<h3>Game result</h3><div class="toggles"><button id="winbtn">🏆 Win the game…</button><button id="losebtn"'+(p.cantLose?' disabled':'')+'>💀 Lose the game…</button><button id="concedebtn">🏳️ Concede…</button><button id="drawbtn"'+(p.cantLose?' disabled':'')+'>📚 Drew from an empty library…</button></div><p class="hint">For cards that win or lose the game outright, when a player concedes, or when someone draws from an empty library. Life totals stay as they are.</p>'+(p.cantLose?'<p class="hint">'+esc(p.name)+' can’t lose the game while protected, so Lose the game and Drew from an empty library are off. Conceding is always allowed. If the effect has ended, turn off the Can’t lose token.</p>':'');
