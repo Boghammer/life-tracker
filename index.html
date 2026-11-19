@@ -367,7 +367,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.25.2',APP_BUILD='2026-11-18';
+const APP_VERSION='1.25.3',APP_BUILD='2026-11-19';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1312,15 +1312,7 @@ function openSheet(i){
   h+='<h3>Commander</h3>';
   p.cmds.forEach((c,k)=>{h+=`<div class="cmd-cur"><img src="${esc(c.art)}" alt=""><span>${esc(c.name)}<br><small style="color:var(--muted)">art: ${esc(c.artist||'')}</small></span><button data-art="${k}">Change art</button><button data-rm="${k}">Remove</button></div>`});
   if(p.cmds.length<2)h+=`<input class="cmd-search" id="cq" placeholder="${p.cmds.length?'Add partner / background…':'Search commander (type, or tap 🎤)…'}" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="search"><div class="cmd-res" id="cres"></div>`;
-  const ctr=(key,label,sub,val,lethal,noPlus)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${noPlus?'defeated · can’t deal damage':sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1"${noPlus?' disabled':''}>+</button></div></div>`;
-  if(m.cmdr){
-    h+='<h3>Commander damage received</h3>';
-    srcs().forEach((o,j)=>{
-      const lbl=k=>`<span style="color:${colorOf(j)}">●</span> From ${esc(o.name)}${j===i?' (myself)':''}${o.cmds[k]?'<small style="color:#cbd5e1">'+esc(o.cmds[k].name)+'</small>':''}`,sub='lethal at 21 · also reduces life';
-      h+=ctr('c'+j,lbl(0),sub,p.cmdr[j],p.cmdr[j]>=21,dead(o));
-      if(o.cmds.length>1)h+=ctr('d'+j,lbl(1),sub,p.cmdrB[j],p.cmdrB[j]>=21,dead(o));
-    });
-  }
+  const ctr=(key,label,sub,val,lethal)=>`<div class="ctr${lethal?' lethal':''}"><div class="lbl">${label}<small>${sub}</small></div><div class="stepper"><button data-k="${key}" data-d="-1">−</button><span class="val">${val}</span><button data-k="${key}" data-d="1">+</button></div></div>`;
   h+='<h3>Panel color</h3><div class="sw">'+SWATCHES.map(c=>`<button data-c="${c}" class="${colorOf(i).toLowerCase()===c?'on':''}${takenBy(c,i)>=0?' taken':''}" style="background:${c}" title="${takenBy(c,i)>=0?'Used by '+esc(S.players[takenBy(c,i)].name):''}"></button>`).join('')+`<input type="color" id="cc" value="${colorOf(i)}" title="Custom color"><div class="note" id="cnote"></div></div>`;
   h+='<h3>Text color</h3><div class="sw"><button data-tc="" class="auto'+(p.textColor?'':' on')+'">Auto</button>'+TEXT_SWATCHES.map(c=>`<button data-tc="${c}" class="${(p.textColor||'').toLowerCase()===c?'on':''}" style="background:${c}"></button>`).join('')+`<input type="color" id="tcc" value="${p.textColor||'#ffffff'}" title="Custom text color"></div>`;
   h+='<h3>Counters</h3>';
@@ -1372,7 +1364,6 @@ function openSheet(i){
   };
   sh.querySelectorAll('.stepper button').forEach(b=>{
     const k=b.dataset.k,d=+b.dataset.d;
-    if(k[0]==='c'||k[0]==='d'){holdRepeat(b,()=>{const r=cmdrAdjust(i,k,d);if(r)openSheet(i);return r});return}
     b.onclick=()=>{
       buzz();
       if(k==='life'){record('life'+i);p.life+=d;logEvent(p,'life',d,p.life)}
