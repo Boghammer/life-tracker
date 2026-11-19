@@ -367,7 +367,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.25.1',APP_BUILD='2026-11-18';
+const APP_VERSION='1.25.2',APP_BUILD='2026-11-18';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -1472,7 +1472,9 @@ function drawSummary(cv,W){
     const last=pts[pts.length-1],everSafe=(q.safeSpans||[]).length>0;
     if(end!=null){
       const endedHere=(q.safeSpans||[]).some(sp=>sp.to===end);   // eliminated the moment protection ended: keep the real (negative) value
-      pts.push([Math.max(end,last[0]),q.defeat&&q.defeat.type==='life'?(endedHere?q.life:0):last[1]]);
+      // life loss ends at 0; so does commander damage / poison when that player's life is also 0 or less (the label still says who defeated them)
+      const hitZero=q.defeat&&(q.defeat.type==='life'||(q.life<=0&&!safeAt(q,end)));
+      pts.push([Math.max(end,last[0]),hitZero?(endedHere?q.life:0):last[1]]);
     }else{
       pts.push([Math.max(now,last[0]),safeAt(q,now)?q.life:Math.max(0,q.life)]);
       if(q.life<=0&&!everSafe){let k=pts.length-1;while(k>0&&pts[k-1][1]<=0)k--;pts.length=k+1}   // older games without a recorded time

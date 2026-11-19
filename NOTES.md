@@ -1,6 +1,6 @@
 # Bog Life: project notes
 
-Working notes for picking this project up in a fresh session. Last updated at v1.25.1 (2026-11-16).
+Working notes for picking this project up in a fresh session. Last updated at v1.25.2 (2026-11-16).
 
 ## What it is
 A no-build PWA life tracker for Magic: The Gathering (Commander-focused), installed to iPhone / iPad / Android home screens
@@ -67,7 +67,8 @@ which puts the ⚔️ button left of the ☰ button instead of above it.
   Solo games are never shared.
 - **History:** `HIST` in `localStorage` key `mtg-life-history`. Record: `{id, startedAt, finished, auto, solo, format, bracket, seconds, rounds, altWin, sn, players[]}`.
   Every finished game is saved automatically; an unfinished game asks first when a new one is started. `sn` is a compact timeline used to redraw the summary
-  image (`compactSnapshot`/`restoreSnapshot`/`drawSummary`). CSV export is `historyCsv()` (LF line endings, BOM). Game history has sort buttons and a
+  image (`compactSnapshot`/`restoreSnapshot`/`drawSummary`). On the graph a defeated player's line ends at 0 for a life-loss defeat, and also for a commander/poison
+  defeat when their life is 0 or less (outside protected stretches); the "Defeated by X" label is unchanged. CSV export is `historyCsv()` (LF line endings, BOM). Game history has sort buttons and a
   collapsible Filters section (players, bracket).
 - **Sharing results:** `SHEET_URL` and `SHEET_KEY` are constants in `index.html`; the key must match `KEY` in `sheet-script/Code.gs`. Opt-in (Settings > Share results),
   names included by default, queued and retried, never for solo games. Feedback uses the same endpoint (`openFeedback`).
