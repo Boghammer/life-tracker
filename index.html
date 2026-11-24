@@ -371,7 +371,7 @@ body.solo .badge{font-size:18px}
 <script>
 // Bump APP_VERSION on every release so the version shown in Settings tells you which build your phone is running.
 // APP_BUILD is filled in with the commit date by the pre-commit hook (.git/hooks/pre-commit).
-const APP_VERSION='1.28.0',APP_BUILD='2026-11-19';
+const APP_VERSION='1.29.0',APP_BUILD='2026-11-24';
 const versionLine=()=>`Bog Life v${APP_VERSION} · build ${APP_BUILD}`;
 const COLORS=['#b91c1c','#1d4ed8','#15803d','#e5e7eb','#7e22ce','#0e7490'];   // player 4 is white
 const SWATCHES=['#b91c1c','#ea580c','#a16207','#ca8a04','#15803d','#0e7490','#1d4ed8','#7e22ce','#be185d','#475569','#111827','#e5e7eb'];
@@ -734,6 +734,40 @@ let histSort=(()=>{try{return {key:'date',dir:-1,...JSON.parse(localStorage.getI
 function appUrl(){
   let u=location.href.split('#')[0].split('?')[0];
   return u.replace(/index\.html$/,'');
+}
+/* Install help: works out the device and browser from the user agent and shows the matching steps first, then every other set */
+const INSTALL_HELP=[
+  {id:'ios-safari',t:'iPhone / iPad · Safari',s:['Tap the Share button (square with an arrow up) in the toolbar.','Scroll down and tap <b>Add to Home Screen</b>.','Tap <b>Add</b>. Open Bog Life from your home screen.']},
+  {id:'ios-other',t:'iPhone / iPad · Chrome, Edge, Firefox',s:['Tap the Share button (square with an arrow up) next to the address bar, or open the ⋯ menu then Share.','Tap <b>Add to Home Screen</b>. If you don’t see it, open this page in Safari instead.','Tap <b>Add</b>. Open Bog Life from your home screen.']},
+  {id:'android-chrome',t:'Android · Chrome',s:['Tap the ⋮ menu (top right).','Tap <b>Install app</b> (or <b>Add to Home screen</b>, then <b>Install</b>).','Open Bog Life from your home screen or app drawer.']},
+  {id:'android-samsung',t:'Android · Samsung Internet',s:['Tap the ☰ menu (bottom right).','Tap <b>Add page to</b>, then <b>Home screen</b> (or <b>Install</b> if offered).','Tap <b>Add</b>.']},
+  {id:'android-firefox',t:'Android · Firefox',s:['Tap the ⋮ menu.','Tap <b>Install</b> (or <b>Add to Home screen</b>).','Tap <b>Add</b>.']},
+  {id:'win-chrome',t:'Windows / Linux / ChromeOS · Chrome or Edge',s:['Look for the install icon (a screen with a down arrow) at the right end of the address bar and click it.','Or open the ⋮ / ⋯ menu and choose <b>Install Bog Life</b> (Chrome: <b>Cast, save and share</b> then <b>Install page as app</b>; Edge: <b>Apps</b> then <b>Install this site as an app</b>).','Click <b>Install</b>. It opens in its own window and appears in your Start menu or app list.']},
+  {id:'mac-safari',t:'Mac · Safari',s:['In the menu bar choose <b>File</b>, then <b>Add to Dock…</b> (Safari 17 or newer).','Click <b>Add</b>. Open Bog Life from your Dock or Launchpad.']},
+  {id:'mac-chrome',t:'Mac · Chrome or Edge',s:['Click the install icon at the right end of the address bar, or open the ⋮ / ⋯ menu and choose Install.','Click <b>Install</b>. Open Bog Life from Launchpad or your Applications folder.']},
+  {id:'firefox-desktop',t:'Desktop · Firefox',s:['Firefox on computers can’t install web apps.','Open this page in Chrome, Edge or Safari to install it, or just keep it as a bookmark.']}
+];
+function detectInstall(){
+  const ua=navigator.userAgent||'',touchMac=/Macintosh/.test(ua)&&navigator.maxTouchPoints>1;
+  const ios=/iPhone|iPad|iPod/.test(ua)||touchMac,android=/Android/.test(ua),mac=/Macintosh/.test(ua)&&!touchMac;
+  const edge=/Edg(e|A|iOS)?\//.test(ua),firefox=/Firefox|FxiOS/.test(ua),samsung=/SamsungBrowser/.test(ua),chrome=/Chrome|CriOS/.test(ua)&&!edge&&!samsung;
+  let id;
+  if(ios)id=(/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua))?'ios-other':'ios-safari';
+  else if(android)id=samsung?'android-samsung':firefox?'android-firefox':'android-chrome';
+  else if(mac)id=firefox?'firefox-desktop':(chrome||edge)?'mac-chrome':'mac-safari';
+  else id=firefox?'firefox-desktop':'win-chrome';
+  const installed=!!(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+  return {id,installed};
+}
+function openInstallHelp(){
+  const d=detectInstall(),mine=INSTALL_HELP.find(h=>h.id===d.id);
+  const block=h=>`<ol style="margin:6px 0 0 20px;padding:0;line-height:1.4">${h.s.map(x=>`<li style="margin-top:4px">${x}</li>`).join('')}</ol>`;
+  modal(`<h2>❓ Install the app</h2>
+${d.installed?'<p class="hint" style="color:#4ade80">You’re already running it as an installed app.</p>':''}
+<h3>Your device</h3><div class="hint" style="color:var(--text,#fff)"><b>${mine.t}</b>${block(mine)}</div>
+<h3>Other devices</h3>${INSTALL_HELP.filter(h=>h.id!==d.id).map(h=>`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">${h.t}</summary><div class="hint" style="color:var(--text,#fff)">${block(h)}</div></details>`).join('')}
+<p class="hint" style="margin-top:12px">Installing gives you a full-screen app that works offline.</p>
+<button class="big" style="margin-top:12px" id="x">Close</button>`,c=>{c.querySelector('#x').onclick=closeModal});
 }
 function openShareApp(){
   const url=appUrl(),local=/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname)||location.hostname.endsWith('.local');
@@ -1644,6 +1678,7 @@ $('bMenu').onclick=()=>{
 <hr class="sep">
 <button class="big" style="margin-top:8px" id="hist">📒 Game history (${HIST.length})</button>
 <button class="big" style="margin-top:8px" id="share">📲 Share the app</button>
+<button class="big" style="margin-top:8px" id="inst">❓ How to install the app</button>
 <button class="big" style="margin-top:8px" id="sres">📤 Share results</button>
 <button class="big" style="margin-top:8px" id="fb">💬 Send feedback</button>
 <button class="big" style="margin-top:8px" id="x">Cancel</button>
@@ -1653,6 +1688,7 @@ $('bMenu').onclick=()=>{
     pick('[data-m]','m',v=>{mode=v;syncSame()});pick('[data-n]','n',v=>{n=+v;syncSame()});syncSame();
     c.querySelector('#hist').onclick=openHistory;
     c.querySelector('#share').onclick=openShareApp;
+    c.querySelector('#inst').onclick=openInstallHelp;
     c.querySelector('#sres').onclick=openShareResults;
     c.querySelector('#fb').onclick=openFeedback;
     c.querySelector('#go').onclick=()=>askSaveThen(()=>bracketFor(n,mode,null,b=>{S=fresh(n,mode);S.bracket=b;startedNewGame();wake()}));

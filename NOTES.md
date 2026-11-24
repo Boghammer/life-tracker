@@ -1,6 +1,6 @@
 # Bog Life: project notes
 
-Working notes for picking this project up in a fresh session. Last updated at v1.28.0 (2026-11-19).
+Working notes for picking this project up in a fresh session. Last updated at v1.29.0 (2026-11-24).
 
 ## What it is
 A no-build PWA life tracker for Magic: The Gathering (Commander-focused), installed to iPhone / iPad / Android home screens
@@ -62,6 +62,7 @@ which puts the ⚔️ button left of the ☰ button instead of above it.
   `holdRepeat` gives hold-to-repeat on +/- buttons.
 - **Each opponent loses life:** row in the player menu, right under the commander name(s) (`openSheet`, not in solo games or for a defeated player). Amount stepper (`drainX`, starts at 0 with only + lit; the choice and Apply stay disabled until it is 1 or more, then "You gain nothing" is selected in green and the Done button turns green and reads "Done · opponents lose X · you gain Y"; Done applies it and closes, the ✕ closes without applying) plus a gain choice
   (`drainMode`: none / same amount / total lost = amount × opponents still in the game, counted even if their life ends at 0 or below). One undo step; both reset when the menu closes.
+- **Install help:** Settings > "❓ How to install the app" (`openInstallHelp`). `detectInstall()` reads the user agent (iOS, Android, Mac, other; Safari, Chrome, Edge, Firefox, Samsung) and shows the matching steps first, the rest in collapsible lists (`INSTALL_HELP`). Steps are from memory of each browser's menus; browsers rename them, so check them on real devices.
 - **Scryfall:** `searchCommanders()` searches all English prints and folds them to one result per card, so Universes Beyond printed names
   (e.g. "Rick, Steadfast Leader" is a print of "Greymond, Avacyn's Stalwart") are found. `fetchArtworks()` for "Change art".
 - **Solo game** (Players: Solo): one panel, no turn roll, no bracket. Win needs no card (`confirmSoloWin`, `S.altWin.solo`). The graph button lives on
