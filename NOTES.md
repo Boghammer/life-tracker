@@ -91,4 +91,5 @@ then Deploy > Manage deployments > edit > New version (the URL stays the same). 
 
 ## Ideas not built
 - Show commander art as a background on damage rows; order of rows in the ⚔️ window (still seat order).
+- Multi-phone sync (one game across several iPhones). Options: WebRTC peer-to-peer joined by QR code (no server; may fail on guest Wi-Fi or cellular), a small relay (Firebase or a Cloudflare Worker, most reliable), or polling the Apps Script sheet (slow, quota-limited). iPhone web apps have no Bluetooth. Simple first version: each phone edits only its own life and the others show it read-only. Hard parts: the app treats one phone as the whole table, plus turn order, defeat, undo and commander damage conflicts. Nothing built or tested.
 - A cleaner way to rotate the shared key (per-player invite codes) if the endpoint is abused.
